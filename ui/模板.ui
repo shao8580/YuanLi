@@ -15,7 +15,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="../resources/myRc.qrc">
-    <normaloff>:/ico/tubiao.ico</normaloff>:/ico/tubiao.ico</iconset>
+    <normaloff>:/ico/qgis.ico</normaloff>:/ico/qgis.ico</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -44,6 +44,8 @@
     <property name="title">
      <string>打开</string>
     </property>
+    <addaction name="actionOpenShp"/>
+    <addaction name="actionOpenRaster"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -52,20 +54,14 @@
     <addaction name="actionEditShp"/>
     <addaction name="actionSelectFeature"/>
     <addaction name="actionDeleteFeature"/>
-   </widget>
-   <widget class="QMenu" name="menu">
-    <property name="title">
-     <string>选中</string>
-    </property>
+    <addaction name="separator"/>
+    <addaction name="actionPolygon"/>
     <addaction name="actionRectangle"/>
     <addaction name="actionCircle"/>
-    <addaction name="actionPolygon"/>
    </widget>
    <addaction name="menuOpen"/>
    <addaction name="menuEdit"/>
-   <addaction name="menu"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="dockWidget">
    <attribute name="dockWidgetArea">
     <number>1</number>
@@ -84,7 +80,12 @@
    </attribute>
    <addaction name="actionOpenShp"/>
    <addaction name="actionOpenRaster"/>
-   <addaction name="actionOpenS57"/>
+   <addaction name="actionEditShp"/>
+   <addaction name="actionSelectFeature"/>
+   <addaction name="actionDeleteFeature"/>
+   <addaction name="actionPolygon"/>
+   <addaction name="actionRectangle"/>
+   <addaction name="actionCircle"/>
   </widget>
   <action name="actionOpenShp">
    <property name="text">
@@ -102,10 +103,10 @@
    </property>
    <property name="icon">
     <iconset resource="../resources/myRc.qrc">
-     <normaloff>:/png/edit.png</normaloff>:/png/edit.png</iconset>
+     <normaloff>:/ico/edit.png</normaloff>:/ico/edit.png</iconset>
    </property>
    <property name="text">
-    <string>编辑</string>
+    <string>编辑矢量</string>
    </property>
   </action>
   <action name="actionSelectFeature">
@@ -114,51 +115,46 @@
    </property>
    <property name="icon">
     <iconset resource="../resources/myRc.qrc">
-     <normaloff>:/png/select.png</normaloff>:/png/select.png</iconset>
+     <normaloff>:/ico/select.png</normaloff>:/ico/select.png</iconset>
    </property>
    <property name="text">
-    <string>选择</string>
+    <string>选择要素</string>
    </property>
   </action>
   <action name="actionDeleteFeature">
    <property name="icon">
     <iconset resource="../resources/myRc.qrc">
-     <normaloff>:/png/delete.png</normaloff>:/png/delete.png</iconset>
+     <normaloff>:/ico/delete.png</normaloff>:/ico/delete.png</iconset>
    </property>
    <property name="text">
-    <string>删除</string>
-   </property>
-  </action>
-  <action name="actionOpenS57">
-   <property name="text">
-    <string>打开s57格式海图</string>
-   </property>
-  </action>
-  <action name="actionRectangle">
-   <property name="icon">
-    <iconset resource="../resources/myRc.qrc">
-     <normaloff>:/png/edit_rectangle.png</normaloff>:/png/edit_rectangle.png</iconset>
-   </property>
-   <property name="text">
-    <string>矩形选中</string>
-   </property>
-  </action>
-  <action name="actionCircle">
-   <property name="icon">
-    <iconset resource="../resources/myRc.qrc">
-     <normaloff>:/png/edit_circle.png</normaloff>:/png/edit_circle.png</iconset>
-   </property>
-   <property name="text">
-    <string>圆形选中</string>
+    <string>删除选中要素</string>
    </property>
   </action>
   <action name="actionPolygon">
    <property name="icon">
     <iconset resource="../resources/myRc.qrc">
-     <normaloff>:/png/edit_polygon.png</normaloff>:/png/edit_polygon.png</iconset>
+     <normaloff>:/ico/edit_polygon.png</normaloff>:/ico/edit_polygon.png</iconset>
    </property>
    <property name="text">
-    <string>面选中</string>
+    <string>绘制面</string>
+   </property>
+  </action>
+  <action name="actionRectangle">
+   <property name="icon">
+    <iconset resource="../resources/myRc.qrc">
+     <normaloff>:/ico/edit_rectangle.png</normaloff>:/ico/edit_rectangle.png</iconset>
+   </property>
+   <property name="text">
+    <string>绘制矩形</string>
+   </property>
+  </action>
+  <action name="actionCircle">
+   <property name="icon">
+    <iconset resource="../resources/myRc.qrc">
+     <normaloff>:/ico/edit_circle.png</normaloff>:/ico/edit_circle.png</iconset>
+   </property>
+   <property name="text">
+    <string>绘制圆</string>
    </property>
   </action>
  </widget>

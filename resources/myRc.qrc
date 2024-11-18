@@ -3,6 +3,9 @@
     <file>tubiao.ico</file>
   </qresource>
   <qresource prefix="png">
+    <file>edit_circle.png</file>
+    <file>edit_polygon.png</file>
+    <file>edit_rectangle.png</file>
     <file>delete.png</file>
     <file>edit.png</file>
     <file>select.png</file>

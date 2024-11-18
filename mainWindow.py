@@ -2,12 +2,12 @@ import sys
 import traceback
 from qgis.core import QgsProject, QgsLayerTreeModel, QgsCoordinateReferenceSystem, QgsMapSettings, QgsMapLayer, \
     QgsVectorLayer, QgsMapLayerType
-from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature
+from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature,QgsMapToolPan
 from PyQt5.QtCore import QUrl, QSize, QMimeData, QUrl, Qt
 from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox
-from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57
+from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool
 
 PROJECT = QgsProject.instance()
 
@@ -80,6 +80,10 @@ s57_layer_sheet = [
 
 
 ]
+s57_layer_sheet.reverse()
+
+s57_layer_sheet = ['LIGHTS','LNDARE','DEPARE',"ADMARE","RESARE"]
+
 
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -96,6 +100,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.hl = QHBoxLayout(self.frame)
         self.hl.setContentsMargins(0, 0, 0, 0)  # 设置周围间距
         self.hl.addWidget(self.mapCanvas)
+
+        # 1. 创建地图画布的漫游工具对象
+        self.mapCanvasPanTool = QgsMapToolPan(self.mapCanvas)
+        # 2. 当需要地图画布漫游的时候，将 mapCavans 的 mapTool 设置为漫游对象
+        self.mapCanvas.setMapTool(self.mapCanvasPanTool)
         # 4 设置图层树风格
         self.model = QgsLayerTreeModel(PROJECT.layerTreeRoot(), self)
         self.model.setFlag(QgsLayerTreeModel.AllowNodeRename)  # 允许图层节点重命名
@@ -166,10 +175,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # action edit
         self.actionSelectFeature.triggered.connect(self.actionSelectFeatureTriggered)
         self.actionEditShp.triggered.connect(self.actionEditShpTriggered)
+        self.actionPolygon.triggered.connect(self.actionPolygonTriggered)
 
         # 单击、双击图层 触发事件
         self.layerTreeView.clicked.connect(self.layerClicked)
+        # 删除
+        self.actionDeleteFeature.triggered.connect(self.actionDeleteFeatureTriggered)
 
+    def actionDeleteFeatureTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if len(self.editTempLayer.selectedFeatureIds()) == 0:
+            QMessageBox.information(self, '删除选中矢量', '您没有选择任何矢量')
+        else:
+            self.editTempLayer.deleteSelectedFeatures()
+
+    # action Polygon
+    def actionPolygonTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if self.mapCanvas.mapTool():
+            self.mapCanvas.mapTool().deactivate()
+        self.polygonTool = PolygonMapTool(self.mapCanvas, self.editTempLayer, self)
+        self.mapCanvas.setMapTool(self.polygonTool)
     def layerClicked(self):
         curLayer: QgsMapLayer = self.layerTreeView.currentLayer()
         if curLayer and type(curLayer) == QgsVectorLayer and not curLayer.readOnly():
