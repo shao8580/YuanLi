@@ -55,10 +55,10 @@
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
-     <string>选中</string>
+     <string>创建矢量元素</string>
     </property>
-    <addaction name="actionRectangle"/>
-    <addaction name="actionCircle"/>
+    <addaction name="actionLine"/>
+    <addaction name="actionPoint"/>
     <addaction name="actionPolygon"/>
    </widget>
    <addaction name="menuOpen"/>
@@ -85,6 +85,7 @@
    <addaction name="actionOpenShp"/>
    <addaction name="actionOpenRaster"/>
    <addaction name="actionOpenS57"/>
+   <addaction name="actionCreateLayer"/>
   </widget>
   <action name="actionOpenShp">
    <property name="text">
@@ -134,22 +135,22 @@
     <string>打开s57格式海图</string>
    </property>
   </action>
-  <action name="actionRectangle">
+  <action name="actionLine">
    <property name="icon">
     <iconset resource="../resources/myRc.qrc">
      <normaloff>:/png/edit_rectangle.png</normaloff>:/png/edit_rectangle.png</iconset>
    </property>
    <property name="text">
-    <string>矩形选中</string>
+    <string>线</string>
    </property>
   </action>
-  <action name="actionCircle">
+  <action name="actionPoint">
    <property name="icon">
     <iconset resource="../resources/myRc.qrc">
      <normaloff>:/png/edit_circle.png</normaloff>:/png/edit_circle.png</iconset>
    </property>
    <property name="text">
-    <string>圆形选中</string>
+    <string>点</string>
    </property>
   </action>
   <action name="actionPolygon">
@@ -158,7 +159,12 @@
      <normaloff>:/png/edit_polygon.png</normaloff>:/png/edit_polygon.png</iconset>
    </property>
    <property name="text">
-    <string>面选中</string>
+    <string>面</string>
+   </property>
+  </action>
+  <action name="actionCreateLayer">
+   <property name="text">
+    <string>创建空白矢量图</string>
    </property>
   </action>
  </widget>

@@ -132,3 +132,128 @@ class PolygonMapTool(QgsMapToolEmitPoint):
         super(PolygonMapTool, self).deactivate()
         self.deactivated.emit()
         self.reset()
+
+
+class PointMapTool(QgsMapToolEmitPoint):
+    def __init__(self, canvas, layer, mainWindow=None):
+        super(PointMapTool, self).__init__(canvas)
+        self.canvas = canvas
+        self.rubberBand = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.rubberBand.setColor(QColor(255, 0, 0, 150))  # 设置点的颜色
+        self.rubberBand.setWidth(5)  # 设置点的大小
+        self.editLayer: QgsVectorLayer = layer
+        self.caps = self.editLayer.dataProvider().capabilities()
+        self.mainWindow = mainWindow
+        self.reset()
+
+    def reset(self):
+        """ 重置状态 """
+        self.cursor_point = None
+        self.rubberBand.reset(True)
+
+    def canvasPressEvent(self, event):
+        """ 当鼠标按下时，开始绘制点 """
+        if event.button() == Qt.LeftButton:
+            self.cursor_point = event.mapPoint()  # 获取点击位置的地图坐标
+            self.addFeature()
+
+    def addFeature(self):
+        """ 向图层添加点要素 """
+        if self.caps & QgsVectorDataProvider.AddFeatures:
+            # 创建一个新的要素
+            feature = QgsFeature(self.editLayer.fields())
+            point = QgsGeometry.fromPointXY(self.cursor_point)
+            feature.setGeometry(point)
+            # 设置属性 (可以根据需要修改属性)
+            feature.setAttributes([self.cursor_point.x(), self.cursor_point.y(), 1])
+
+            # 添加到图层
+            self.editLayer.dataProvider().addFeature(feature)
+            self.editLayer.updateExtents()
+            self.canvas.refresh()
+
+    def canvasMoveEvent(self, event):
+        """ 当鼠标移动时，显示点 """
+        self.cursor_point = event.mapPoint()
+        self.show_point()
+
+    def show_point(self):
+        """ 在鼠标移动时显示点的 rubberBand 效果 """
+        self.rubberBand.reset(QgsWkbTypes.PointGeometry)
+        self.rubberBand.addPoint(self.cursor_point, True)
+        self.rubberBand.show()
+
+    def deactivate(self):
+        """ 当工具停用时，重置状态 """
+        super(PointMapTool, self).deactivate()
+        self.reset()
+        self.deactivated.emit()
+
+
+
+class LineMapTool(QgsMapToolEmitPoint):
+    def __init__(self, canvas, layer, mainWindow, otherCanvas=None):
+        super(LineMapTool, self).__init__(canvas)
+        self.canvas = canvas
+        self.rubberBand = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
+        self.rubberBand.setColor(QColor(0, 0, 255, 150))
+        self.rubberBand.setWidth(2)
+        self.editLayer: QgsVectorLayer = layer
+        self.caps = self.editLayer.dataProvider().capabilities()
+        self.mainWindow = mainWindow
+        self.otherCanvas = otherCanvas
+        self.reset()
+
+    def reset(self):
+        self.is_start = False  # 是否开始绘图
+        self.points = []
+        self.rubberBand.reset(True)
+
+    def canvasPressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.points.append(event.mapPoint())
+            self.is_start = True
+        elif event.button() == Qt.RightButton:
+            # 右键结束绘制
+            if self.is_start:
+                self.is_start = False
+                self.p = self.line()
+                if self.p is not None:
+                    if self.p.isGeosValid():
+                        self.addFeature()
+                    else:
+                        QMessageBox.about(self.mainWindow, '错误', "线要素拓扑逻辑错误")
+                        self.reset()
+                else:
+                    self.reset()
+
+    def addFeature(self):
+        if self.caps & QgsVectorDataProvider.AddFeatures:
+            feat = QgsFeature(self.editLayer.fields())
+            feat.setGeometry(self.p)
+            self.editLayer.addFeature(feat)
+            self.canvas.refresh()
+            if self.otherCanvas:
+                self.otherCanvas.refresh()
+            self.reset()
+
+    def canvasMoveEvent(self, event):
+        if not self.is_start:
+            return
+        self.rubberBand.reset(QgsWkbTypes.LineGeometry)
+        self.points.append(event.mapPoint())
+        for point in self.points:
+            self.rubberBand.addPoint(point, False)
+        self.rubberBand.addPoint(event.mapPoint(), True)
+        self.rubberBand.show()
+
+    def line(self):
+        if len(self.points) < 2:
+            return None
+        pointList = [QgsPointXY(p.x(), p.y()) for p in self.points]
+        return QgsGeometry.fromPolylineXY(pointList)
+
+    def deactivate(self):
+        super(LineMapTool, self).deactivate()
+        self.deactivated.emit()
+        self.reset()

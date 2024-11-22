@@ -1,13 +1,14 @@
 import sys
+import os
 import traceback
 from qgis.core import QgsProject, QgsLayerTreeModel, QgsCoordinateReferenceSystem, QgsMapSettings, QgsMapLayer, \
-    QgsVectorLayer, QgsMapLayerType
+    QgsVectorLayer, QgsMapLayerType, QgsField,QgsVectorFileWriter,QgsFeature,QgsPointXY,QgsGeometry,QgsFields,QgsWkbTypes
 from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature,QgsMapToolPan
-from PyQt5.QtCore import QUrl, QSize, QMimeData, QUrl, Qt
+from PyQt5.QtCore import QUrl, QSize, QMimeData, QUrl, Qt,QVariant,QMetaType
 from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox
-from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool
+from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool
 
 PROJECT = QgsProject.instance()
 
@@ -171,11 +172,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionOpenRaster.triggered.connect(self.actionOpenRasterTriggered)
         self.actionOpenShp.triggered.connect(self.actionOpenShpTriggered)
         self.actionOpenS57.triggered.connect(self.actionOpenS57Triggered)
+        self.actionCreateLayer.triggered.connect(self.actionCreateLayerTriggered)
 
         # action edit
         self.actionSelectFeature.triggered.connect(self.actionSelectFeatureTriggered)
         self.actionEditShp.triggered.connect(self.actionEditShpTriggered)
         self.actionPolygon.triggered.connect(self.actionPolygonTriggered)
+        self.actionPoint.triggered.connect(self.actionPointTriggered)
+        self.actionLine.triggered.connect(self.actionLineTriggered)
 
         # 单击、双击图层 触发事件
         self.layerTreeView.clicked.connect(self.layerClicked)
@@ -200,6 +204,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.mapCanvas.mapTool().deactivate()
         self.polygonTool = PolygonMapTool(self.mapCanvas, self.editTempLayer, self)
         self.mapCanvas.setMapTool(self.polygonTool)
+
+    def actionPointTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if self.mapCanvas.mapTool():
+            self.mapCanvas.mapTool().deactivate()
+        self.pointTool = PointMapTool(self.mapCanvas, self.editTempLayer, self)
+        self.mapCanvas.setMapTool(self.pointTool)
+
+    def actionLineTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if self.mapCanvas.mapTool():
+            self.mapCanvas.mapTool().deactivate()
+        self.lineTool = LineMapTool(self.mapCanvas, self.editTempLayer, self)
+        self.mapCanvas.setMapTool(self.lineTool)
+
     def layerClicked(self):
         curLayer: QgsMapLayer = self.layerTreeView.currentLayer()
         if curLayer and type(curLayer) == QgsVectorLayer and not curLayer.readOnly():
@@ -243,8 +266,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             filePath: str = filePath.replace("/", "//")
             if filePath.split(".")[-1] in ["tif", "TIF", "tiff", "TIFF", "GTIFF", "png", "jpg", "pdf"]:
                 self.addRasterLayer(filePath)
-            elif filePath.split(".")[-1] in ["shp", "SHP", "gpkg", "geojson", "kml", "000"]:
+            elif filePath.split(".")[-1] in ["shp", "SHP", "gpkg", "geojson", "kml"]:
                 self.addVectorLayer(filePath)
+            elif filePath.split(".")[-1] in ["000"]:
+                self.addS57Layers(filePath, s57_layer_sheet)
             elif filePath == "":
                 pass
             else:
@@ -279,6 +304,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                                      "S-57 map (*.000);;All Files (*)")
         if data_file:
             self.addS57Layers(data_file, s57_layer_sheet)
+
+    def actionCreateLayerTriggered(self):
+        # 创建一个空白的点图层 (记得修改为你的CRS)
+        layer = QgsVectorLayer('Point?crs=EPSG:4326', 'LayerName', 'memory')
+
+        # 添加字段
+        pr = layer.dataProvider()
+        pr.addAttributes([
+            QgsField("ID", QVariant.Int),
+            QgsField("Name", QVariant.String)
+        ])
+        layer.updateFields()
+
+        # 创建一个示例点要素
+        feature = QgsFeature()
+        point = QgsPointXY(120.0, 30.0)  # 设置点的经纬度
+        feature.setGeometry(QgsGeometry.fromPointXY(point))
+        feature.setAttributes([1, "Sample Point"])
+        pr.addFeature(feature)
+
+        # 保存为 .shp 文件 (确保路径有效)
+        file_path = r'D:\gongju\pycharm\wenjian\HaiTu\testdata\point_layer.shp'
+        if os.path.exists(file_path):
+            os.remove(file_path)  # 如果文件已存在，先删除它
+        QgsVectorFileWriter.writeAsVectorFormat(layer, file_path, 'utf-8', layer.crs(), 'ESRI Shapefile')
+
+        print(f"已将图层保存为: {file_path}")
 
     # 添加栅格图层
     def addRasterLayer(self, rasterFilePath):
