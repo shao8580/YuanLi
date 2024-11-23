@@ -14,6 +14,7 @@ from qgis.core import QgsMapLayer,QgsRectangle,QgsPoint,QgsDistanceArea,QgsCircl
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand, QgsVertexMarker,QgsMapToolIdentify,QgsMapTool,QgsMapToolIdentifyFeature,QgsMapCanvas,QgsMapCanvasItem,QgsMapToolPan
 
 from widgetAndDialog.mapTool_InputAttrWindow import inputAttrWindowClass
+from PyQt5.QtWidgets import QInputDialog
 
 class PolygonMapTool(QgsMapToolEmitPoint):
     def __init__(self, canvas,layer,mainWindow,preField=None,preFieldValue=None,recExtent=None,otherCanvas=None,fieldValueDict=None,dialogMianFieldName=None):
@@ -158,14 +159,20 @@ class PointMapTool(QgsMapToolEmitPoint):
             self.addFeature()
 
     def addFeature(self):
-        """ 向图层添加点要素 """
+        """ 向图层添加点要素，并手动输入 id """
         if self.caps & QgsVectorDataProvider.AddFeatures:
+            # 获取用户输入的 id
+            id, ok = QInputDialog.getInt(None, "输入ID", "请输入点的ID:", 1, 0, 1000000, 1)
+            if not ok:
+                return  # 如果用户取消输入，不添加要素
+
             # 创建一个新的要素
             feature = QgsFeature(self.editLayer.fields())
             point = QgsGeometry.fromPointXY(self.cursor_point)
             feature.setGeometry(point)
-            # 设置属性 (可以根据需要修改属性)
-            feature.setAttributes([self.cursor_point.x(), self.cursor_point.y(), 1])
+
+            # 设置属性 (x, y, id)
+            feature.setAttributes([self.cursor_point.x(), self.cursor_point.y(), id])
 
             # 添加到图层
             self.editLayer.dataProvider().addFeature(feature)

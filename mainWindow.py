@@ -173,6 +173,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionOpenShp.triggered.connect(self.actionOpenShpTriggered)
         self.actionOpenS57.triggered.connect(self.actionOpenS57Triggered)
         self.actionCreateLayer.triggered.connect(self.actionCreateLayerTriggered)
+        self.actionConvert.triggered.connect(self.actionConvertTriggered)
 
         # action edit
         self.actionSelectFeature.triggered.connect(self.actionSelectFeatureTriggered)
@@ -312,8 +313,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 添加字段
         pr = layer.dataProvider()
         pr.addAttributes([
-            QgsField("ID", QVariant.Int),
-            QgsField("Name", QVariant.String)
+            QgsField("x", QVariant.String),
+            QgsField("y", QVariant.String),
+            QgsField("id", QVariant.String),
         ])
         layer.updateFields()
 
@@ -331,6 +333,47 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         QgsVectorFileWriter.writeAsVectorFormat(layer, file_path, 'utf-8', layer.crs(), 'ESRI Shapefile')
 
         print(f"已将图层保存为: {file_path}")
+        if file_path:
+            self.addVectorLayer(file_path)
+
+    def actionConvertTriggered(self):
+        """ 从点图层生成线图层，连线顺序根据 id 排序 """
+        # 获取点图层的数据提供者
+        # 获取当前选中的图层
+        point_layer = self.layerTreeView.currentLayer()  # 获取当前活动图层
+
+        provider = point_layer.dataProvider()
+
+        # 获取所有点要素
+        all_features = [feat for feat in provider.getFeatures()]
+        # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+        valid_features = [feat for feat in all_features if feat.attribute(2) is not None]
+
+        # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
+        sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
+
+        # 创建一个空白的线图层
+        line_layer = QgsVectorLayer("LineString?crs=EPSG:4326", "线图层", "memory")
+        line_provider = line_layer.dataProvider()
+
+        # 获取点的几何信息并创建线
+        points = [feat.geometry().asPoint() for feat in sorted_features]
+        if len(points) < 2:
+            print("点数不足以创建线段")
+            return
+
+        # 创建线要素
+        line = QgsFeature()
+        line_geom = QgsGeometry.fromPolylineXY(points)
+        line.setGeometry(line_geom)
+
+        # 将线要素添加到线图层
+        line_provider.addFeature(line)
+        line_layer.updateExtents()
+
+        # 将线图层添加到地图
+        QgsProject.instance().addMapLayer(line_layer)
+
 
     # 添加栅格图层
     def addRasterLayer(self, rasterFilePath):

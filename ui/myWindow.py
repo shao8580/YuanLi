@@ -90,9 +90,12 @@ class Ui_MainWindow(object):
         self.actionPolygon.setObjectName("actionPolygon")
         self.actionCreateLayer = QtWidgets.QAction(MainWindow)
         self.actionCreateLayer.setObjectName("actionCreateLayer")
+        self.actionConvert = QtWidgets.QAction(MainWindow)
+        self.actionConvert.setObjectName("actionConvert")
         self.menuEdit.addAction(self.actionEditShp)
         self.menuEdit.addAction(self.actionSelectFeature)
         self.menuEdit.addAction(self.actionDeleteFeature)
+        self.menuEdit.addAction(self.actionConvert)
         self.menu.addAction(self.actionLine)
         self.menu.addAction(self.actionPoint)
         self.menu.addAction(self.actionPolygon)
@@ -124,4 +127,5 @@ class Ui_MainWindow(object):
         self.actionPoint.setText(_translate("MainWindow", "点"))
         self.actionPolygon.setText(_translate("MainWindow", "面"))
         self.actionCreateLayer.setText(_translate("MainWindow", "创建空白矢量图"))
+        self.actionConvert.setText(_translate("MainWindow", "点图层转换"))
 import myRc_rc

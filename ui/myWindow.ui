@@ -52,6 +52,7 @@
     <addaction name="actionEditShp"/>
     <addaction name="actionSelectFeature"/>
     <addaction name="actionDeleteFeature"/>
+    <addaction name="actionConvert"/>
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
@@ -165,6 +166,11 @@
   <action name="actionCreateLayer">
    <property name="text">
     <string>创建空白矢量图</string>
+   </property>
+  </action>
+  <action name="actionConvert">
+   <property name="text">
+    <string>点图层转换</string>
    </property>
   </action>
  </widget>
