@@ -54,6 +54,7 @@
     <addaction name="actionDeleteFeature"/>
     <addaction name="actionConvert"/>
     <addaction name="actionCheckLine"/>
+    <addaction name="actionPLAN"/>
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
@@ -177,6 +178,11 @@
   <action name="actionCheckLine">
    <property name="text">
     <string>检测线图层是否冲突</string>
+   </property>
+  </action>
+  <action name="actionPLAN">
+   <property name="text">
+    <string>路径规划</string>
    </property>
   </action>
  </widget>

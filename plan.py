@@ -1,5 +1,14 @@
-from qgis.core import QgsGeometry
-
+import sys
+import os
+import traceback
+from qgis.core import QgsProject, QgsLayerTreeModel, QgsCoordinateReferenceSystem, QgsMapSettings, QgsMapLayer, \
+    QgsVectorLayer, QgsMapLayerType, QgsField,QgsVectorFileWriter,QgsFeature,QgsPointXY,QgsGeometry,QgsFields,QgsWkbTypes,QgsSpatialIndex
+from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature,QgsMapToolPan
+from PyQt5.QtCore import QUrl, QSize, QMimeData, QUrl, Qt,QVariant,QMetaType
+from ui.myWindow import Ui_MainWindow
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
+    QComboBox,QInputDialog
+from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool
 
 def neighbors(point):
     """生成当前点的邻近点"""
@@ -11,6 +20,15 @@ def neighbors(point):
         QgsPointXY(point.x(), point.y() - step_size)
     ]
     return neighbors
+
+
+def return_path(node):
+    """从目标节点向回追踪路径"""
+    path = []
+    while node:
+        path.append(node['point'])
+        node = node.get('parent', None)
+    return path[::-1]  # 返回从起点到终点的路径
 
 
 def find_path(start_point, end_point, land_layer, restricted_layer):
@@ -42,12 +60,8 @@ def find_path(start_point, end_point, land_layer, restricted_layer):
         # 生成邻近节点，并检查是否与陆地或禁行区域相交
         neighbors = neighbors(current_node['point'])
         for neighbor in neighbors:
-            # 将 QgsPointXY 转换为 QgsGeometry
-            neighbor_geom = QgsGeometry.fromPointXY(neighbor)
-
-            # 检查邻近点是否与陆地或禁行区域相交
-            if any([neighbor_geom.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-                    any([neighbor_geom.intersects(restricted.geometry()) for restricted in
+            if any([neighbor.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
+                    any([neighbor.intersects(restricted.geometry()) for restricted in
                          restricted_layer.getFeatures()]):
                 continue  # 如果相交，跳过该节点
 
@@ -59,3 +73,17 @@ def find_path(start_point, end_point, land_layer, restricted_layer):
                 open_set.append(neighbor_node)
 
     return None  # 未找到有效路径
+
+
+def add_path_to_map(path, line_layer):
+    """将生成的路径添加到地图中"""
+    if len(path) < 2:
+        return  # 路径点不足无法生成线
+
+    line_feature = QgsFeature()
+    line_geom = QgsGeometry.fromPolylineXY(path)
+    line_feature.setGeometry(line_geom)
+
+    line_layer.dataProvider().addFeature(line_feature)
+    line_layer.updateExtents()
+    QgsProject.instance().addMapLayer(line_layer)
