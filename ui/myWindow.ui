@@ -53,6 +53,7 @@
     <addaction name="actionSelectFeature"/>
     <addaction name="actionDeleteFeature"/>
     <addaction name="actionConvert"/>
+    <addaction name="actionCheckLine"/>
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
@@ -171,6 +172,11 @@
   <action name="actionConvert">
    <property name="text">
     <string>点图层转换</string>
+   </property>
+  </action>
+  <action name="actionCheckLine">
+   <property name="text">
+    <string>检测线图层是否冲突</string>
    </property>
   </action>
  </widget>

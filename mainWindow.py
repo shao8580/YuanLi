@@ -2,16 +2,17 @@ import sys
 import os
 import traceback
 from qgis.core import QgsProject, QgsLayerTreeModel, QgsCoordinateReferenceSystem, QgsMapSettings, QgsMapLayer, \
-    QgsVectorLayer, QgsMapLayerType, QgsField,QgsVectorFileWriter,QgsFeature,QgsPointXY,QgsGeometry,QgsFields,QgsWkbTypes
+    QgsVectorLayer, QgsMapLayerType, QgsField,QgsVectorFileWriter,QgsFeature,QgsPointXY,QgsGeometry,QgsFields,QgsWkbTypes,QgsSpatialIndex
 from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature,QgsMapToolPan
 from PyQt5.QtCore import QUrl, QSize, QMimeData, QUrl, Qt,QVariant,QMetaType
 from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
-    QComboBox
+    QComboBox,QInputDialog
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool
 
 PROJECT = QgsProject.instance()
 
+# 完整图层
 s57_layer_sheet = [
 "ACHARE",
 "ACHARE",
@@ -83,7 +84,9 @@ s57_layer_sheet = [
 ]
 s57_layer_sheet.reverse()
 
-s57_layer_sheet = ['LIGHTS','LNDARE','DEPARE',"ADMARE","RESARE"]
+# s57_layer_sheet = ['LIGHTS','LNDARE','DEPARE',"ADMARE","RESARE"]
+# 部分图层
+s57_layer_sheet_1 = ['LIGHTS','LNDARE',"RESARE","HRBARE"]
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -174,6 +177,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionOpenS57.triggered.connect(self.actionOpenS57Triggered)
         self.actionCreateLayer.triggered.connect(self.actionCreateLayerTriggered)
         self.actionConvert.triggered.connect(self.actionConvertTriggered)
+        self.actionCheckLine.triggered.connect(self.check_line_intersects_with_areas)
 
         # action edit
         self.actionSelectFeature.triggered.connect(self.actionSelectFeatureTriggered)
@@ -304,7 +308,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         data_file, ext = QFileDialog.getOpenFileName(self, '打开', '',
                                                      "S-57 map (*.000);;All Files (*)")
         if data_file:
-            self.addS57Layers(data_file, s57_layer_sheet)
+            item, ok = QInputDialog.getItem(self, "选择打开方式", "请选择一个S57浏览方式:", ["all","section","3"], 0, False)
+            if item=="all":
+                self.addS57Layers(data_file, s57_layer_sheet)
+            if item=="section":
+                self.addS57Layers(data_file, s57_layer_sheet_1)
 
     def actionCreateLayerTriggered(self):
         # 创建一个空白的点图层 (记得修改为你的CRS)
@@ -323,11 +331,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         feature = QgsFeature()
         point = QgsPointXY(120.0, 30.0)  # 设置点的经纬度
         feature.setGeometry(QgsGeometry.fromPointXY(point))
-        feature.setAttributes([1, "Sample Point"])
+        feature.setAttributes([120, 30, "Standard"])
         pr.addFeature(feature)
 
         # 保存为 .shp 文件 (确保路径有效)
-        file_path = r'D:\gongju\pycharm\wenjian\HaiTu\testdata\point_layer.shp'
+        file_path, ext = QFileDialog.getSaveFileName(self, '保存文件', '',
+                                                     "ShapeFile(*.shp);;GeoPackage(*.gpkg);;GeoJSON(*.geojson);;KML(*.kml);;All Files(*)")
+        # file_path = r'D:\gongju\pycharm\wenjian\HaiTu\testdata\point_layer.shp'
         if os.path.exists(file_path):
             os.remove(file_path)  # 如果文件已存在，先删除它
         QgsVectorFileWriter.writeAsVectorFormat(layer, file_path, 'utf-8', layer.crs(), 'ESRI Shapefile')
@@ -347,7 +357,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 获取所有点要素
         all_features = [feat for feat in provider.getFeatures()]
         # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
-        valid_features = [feat for feat in all_features if feat.attribute(2) is not None]
+        # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+        valid_features = [feat for feat in all_features if
+                          not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
+        # valid_features = [feat for feat in all_features if feat.attribute(2) is not None]
 
         # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
         sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
@@ -359,7 +372,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 获取点的几何信息并创建线
         points = [feat.geometry().asPoint() for feat in sorted_features]
         if len(points) < 2:
-            print("点数不足以创建线段")
+            QMessageBox.about(self, '警告', f'点数量不足以创建线')
             return
 
         # 创建线要素
@@ -370,9 +383,66 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 将线要素添加到线图层
         line_provider.addFeature(line)
         line_layer.updateExtents()
+        # 添加前判断是否冲突
 
+        self.check_line_intersects_with_areas()
         # 将线图层添加到地图
         QgsProject.instance().addMapLayer(line_layer)
+
+
+    def check_line_intersects_with_areas(self):
+        """检查线图层和面图层是否相交"""
+
+        # 获取当前活动图层（线图层）
+        t = 0 # 存储是否相交
+
+        line_layer = self.layerTreeView.currentLayer()  # 假设这是线图层
+
+        # 获取面图层（可以从已有的面图层选择或其他方式）
+        # 假设我们选择了另一个面图层作为目标图层
+        # selected_layers = self.layerTreeView.selectedLayers()  # 获取所有选中的图层
+        all_layers = [layer for layer in QgsProject.instance().mapLayers().values()]
+
+        area_layer = all_layers
+        print(area_layer)
+        # 遍历选中的图层，找出面图层
+
+        for layer in all_layers:
+            print(layer.crs)
+            print(layer.dataProvider)
+            print(layer.geometryType())
+            if layer.geometryType() == QgsWkbTypes.PolygonGeometry or layer.geometryType() == 0:
+                area_layer = layer
+                print(area_layer)
+                # break  # 假设只选择一个面图层
+
+                if not area_layer:
+                    QMessageBox.warning(self, "警告", "未选择面图层!")
+                    return
+
+                # 确保线图层和面图层不是同一个图层
+                if line_layer == area_layer:
+                    QMessageBox.warning(self, "警告", "线图层和面图层不能是同一图层!")
+                    return
+
+                # 遍历线图层中的每个线要素
+                for line_feature in line_layer.getFeatures():
+                    line_geom = line_feature.geometry()
+
+                    # 遍历面图层中的每个面要素
+                    for area_feature in area_layer.getFeatures():
+                        area_geom = area_feature.geometry()
+
+                        # 检查线与面是否相交
+                        if line_geom.intersects(area_geom):
+                            QMessageBox.about(self, '提示', f"线 {line_feature.id()} 与 面 {area_feature.id()} 相交，错误航线")
+                            print(f"线 {line_feature.id()} 与 面 {area_feature.id()} 相交")
+                            t = 1
+
+        if t == 0:
+            print("没有相交")
+        return t
+
 
 
     # 添加栅格图层
