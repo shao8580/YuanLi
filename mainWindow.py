@@ -390,13 +390,43 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # 如果到达终点，则返回路径
             if current_node['point'].distance(end_point) < 0.5:  # 允许一定范围内到达
-                print("已找到路径")
-                list1 = reconstruct_path(current_node)
-                list2 = smooth_path_with_bspline(list1)
 
-                add_path_to_map(list1)
-                add_path_to_map(list2)
-                return reconstruct_path(current_node)
+                while open_set:
+                    # 按照f = g + h的值排序，选择最优节点
+                    current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+                    open_set.remove(current_node)
+
+                    # 如果到达终点，则返回路径
+                    if current_node['point'].distance(end_point) < 0.05:  # 允许一定范围内到达
+                        print("已找到路径")
+                        list1 = reconstruct_path(current_node)
+                        list2 = smooth_path_with_bspline(list1)
+
+                        add_path_to_map(list1)
+                        add_path_to_map(list2)
+                        return reconstruct_path(current_node)
+
+                    # 将当前节点加入已探索的节点
+                    closed_set.append(current_node)
+
+                    # 生成邻近节点，并检查是否与陆地或禁行区域相交
+                    neighbors = generate_neighbors(current_node['point'],0.05)
+                    for neighbor in neighbors:
+                        # 将 QgsPointXY 转换为 QgsGeometry
+                        neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+
+                        # 检查邻近点是否与陆地或禁行区域相交
+                        if any([neighbor_geom.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
+                                any([neighbor_geom.intersects(restricted.geometry()) for restricted in
+                                     restricted_layer.getFeatures()]):
+                            continue  # 如果相交，跳过该节点
+                        g_score = current_node['g'] + current_node['point'].distance(neighbor)
+                        h_score = neighbor.distance(end_point)
+                        neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
+
+                        if neighbor_node not in closed_set:
+                            open_set.append(neighbor_node)
+
 
             # 将当前节点加入已探索的节点
             closed_set.append(current_node)
@@ -412,19 +442,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         any([neighbor_geom.intersects(restricted.geometry()) for restricted in
                              restricted_layer.getFeatures()]):
                     continue  # 如果相交，跳过该节点
-
-            # # 检查邻近点是否与陆地或禁行区域相交
-            # if any([neighbor_geom.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-            #         any([neighbor_geom.intersects(restricted.geometry()) for restricted in
-            #              restricted_layer.getFeatures()]):
-            #     continue  # 如果相交，跳过该节点
-            # # 生成邻近节点，并检查是否与陆地或禁行区域相交
-            # neighbors = generate_neighbors(current_node['point'])
-            # for neighbor in neighbors:
-            #     if any([neighbor.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-            #             any([neighbor.intersects(restricted.geometry()) for restricted in
-            #                  restricted_layer.getFeatures()]):
-            #         continue  # 如果相交，跳过该节点
 
                 g_score = current_node['g'] + current_node['point'].distance(neighbor)
                 h_score = neighbor.distance(end_point)
