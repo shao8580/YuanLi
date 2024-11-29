@@ -60,20 +60,6 @@ def actionPLANTriggered(self):
                     any([neighbor_geom.intersects(restricted.geometry()) for restricted in
                          restricted_layer.getFeatures()]):
                 continue  # 如果相交，跳过该节点
-
-            # # 检查邻近点是否与陆地或禁行区域相交
-            # if any([neighbor_geom.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-            #         any([neighbor_geom.intersects(restricted.geometry()) for restricted in
-            #              restricted_layer.getFeatures()]):
-            #     continue  # 如果相交，跳过该节点
-            # # 生成邻近节点，并检查是否与陆地或禁行区域相交
-            # neighbors = generate_neighbors(current_node['point'])
-            # for neighbor in neighbors:
-            #     if any([neighbor.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-            #             any([neighbor.intersects(restricted.geometry()) for restricted in
-            #                  restricted_layer.getFeatures()]):
-            #         continue  # 如果相交，跳过该节点
-
             g_score = current_node['g'] + current_node['point'].distance(neighbor)
             h_score = neighbor.distance(end_point)
             neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
