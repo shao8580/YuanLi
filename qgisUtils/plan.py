@@ -1,5 +1,7 @@
 from qgis.core import QgsGeometry, QgsPointXY, QgsFeature, QgsSpatialIndex,QgsProject
-
+from qgis.core import QgsPointXY, QgsGeometry
+import numpy as np
+from scipy.interpolate import BarycentricInterpolator
 '''
 def find_path(start_point, end_point, land_layer, restricted_layer):
     """
@@ -44,9 +46,9 @@ def find_path(start_point, end_point, land_layer, restricted_layer):
     return None  # 未找到有效路径
 '''
 
-def generate_neighbors(point):
+def generate_neighbors(point,step_size=0.5):
     """生成当前点的邻近点"""
-    step_size = 0.05 # 调整步长以增加精度
+    # step_size = 0.5  调整步长以增加精度
     neighbors = [
         QgsPointXY(point.x() + step_size, point.y()),
         QgsPointXY(point.x() - step_size, point.y()),
@@ -86,7 +88,7 @@ from qgis.core import QgsVectorLayer, QgsFeature, QgsGeometry, QgsProject
 def add_path_to_map(path):
     """将生成的路径添加到新的线图层"""
     if len(path) < 2:
-        print("未找到")
+        print("点数量不足")
         return  # 路径点不足无法生成线
 
     # 创建一个新的线图层 (记得设置坐标参考系统 CRS)
@@ -109,3 +111,55 @@ def add_path_to_map(path):
 
     # 将图层添加到 QGIS 项目
     QgsProject.instance().addMapLayer(line_layer)
+'''
+def smooth_path_with_bspline(path, num_points=100):
+    """
+    使用 B样条曲线对路径进行平滑
+    :param path: 需要平滑的路径，类型为 [QgsPointXY, ...]
+    :param num_points: 生成平滑曲线的点数
+    :return: 平滑后的路径
+    """
+    # 将路径中的点坐标提取出来
+    x_coords = [point.x() for point in path]
+    y_coords = [point.y() for point in path]
+
+    # 使用 scipy 的 BarycentricInterpolator 拟合 B样条曲线
+    interpolator_x = BarycentricInterpolator(range(len(x_coords)), x_coords)
+    interpolator_y = BarycentricInterpolator(range(len(y_coords)), y_coords)
+
+    # 根据插值生成平滑路径
+    smooth_x = interpolator_x(np.linspace(0, len(x_coords) - 1, num_points))
+    smooth_y = interpolator_y(np.linspace(0, len(y_coords) - 1, num_points))
+
+    # 将平滑后的坐标转换为 QgsPointXY
+    smooth_path = [QgsPointXY(x, y) for x, y in zip(smooth_x, smooth_y)]
+
+    return smooth_path
+'''
+
+import numpy as np
+from scipy.special import comb
+
+
+def smooth_path_with_bspline(control_points, num_points=100):
+    """
+    生成三次贝塞尔曲线
+    :param control_points: 控制点的列表 [QgsPointXY, ...]
+    :param num_points: 曲线上的点数
+    :return: 曲线的点列表
+    """
+    n = len(control_points) - 1  # 控制点数目
+    t = np.linspace(0, 1, num_points)  # t 的取值范围
+
+    # 获取控制点的 x 和 y 坐标
+    x_coords = [point.x() for point in control_points]
+    y_coords = [point.y() for point in control_points]
+
+    # 使用贝塞尔曲线公式计算曲线坐标
+    bezier_x = sum(comb(n, i) * ((1 - t) ** (n - i)) * (t ** i) * x_coords[i] for i in range(n + 1))
+    bezier_y = sum(comb(n, i) * ((1 - t) ** (n - i)) * (t ** i) * y_coords[i] for i in range(n + 1))
+
+    # 生成曲线上的点
+    bezier_path = [QgsPointXY(x, y) for x, y in zip(bezier_x, bezier_y)]
+
+    return bezier_path

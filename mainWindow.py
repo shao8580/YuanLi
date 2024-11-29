@@ -9,7 +9,7 @@ from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox,QInputDialog
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,\
-    generate_neighbors,reconstruct_path,add_path_to_map
+    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline
 PROJECT = QgsProject.instance()
 
 # 完整图层
@@ -362,9 +362,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
         sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
         print(sorted_features)
-        start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
-        end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
-        # start_point = sorted_features[0]
+        # start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
+        # end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
+        # print(start_point, end_point)
+        start_point = sorted_features[0].geometry().asPoint()
+        end_point = sorted_features[-1].geometry().asPoint()
+        print(start_point)
+        print(end_point)
+        # start_point = start_point_1
         # end_point = sorted_features[1]
         all_layers = [layer for layer in QgsProject.instance().mapLayers().values()]
         land_layer = all_layers[2]
@@ -384,11 +389,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             open_set.remove(current_node)
 
             # 如果到达终点，则返回路径
-            if current_node['point'].distance(end_point) < 0.1:  # 允许一定范围内到达
+            if current_node['point'].distance(end_point) < 0.5:  # 允许一定范围内到达
                 print("已找到路径")
-                list1=reconstruct_path(current_node)
-                print(list1)
+                list1 = reconstruct_path(current_node)
+                list2 = smooth_path_with_bspline(list1)
+
                 add_path_to_map(list1)
+                add_path_to_map(list2)
                 return reconstruct_path(current_node)
 
             # 将当前节点加入已探索的节点
