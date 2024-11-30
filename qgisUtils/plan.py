@@ -45,19 +45,21 @@ def find_path(start_point, end_point, land_layer, restricted_layer):
 
     return None  # 未找到有效路径
 '''
-
-def generate_neighbors(point,step_size=0.5):
+import time
+def generate_neighbors(point,step=0.3):
     """生成当前点的邻近点"""
     # step_size = 0.5  调整步长以增加精度
+    # print(time.time())
+    step_size = max(0.01, step/4)
     neighbors = [
         QgsPointXY(point.x() + step_size, point.y()),
         QgsPointXY(point.x() - step_size, point.y()),
         QgsPointXY(point.x(), point.y() + step_size),
         QgsPointXY(point.x(), point.y() - step_size),
-        QgsPointXY(point.x() + step_size, point.y() + step_size),
-        QgsPointXY(point.x() - step_size, point.y() - step_size),
-        QgsPointXY(point.x() + step_size, point.y() - step_size),
-        QgsPointXY(point.x() - step_size, point.y() + step_size),
+        QgsPointXY(point.x() + step_size/1.2, point.y() + step_size/1.2),
+        QgsPointXY(point.x() + step_size/1.2, point.y() - step_size/1.2),
+        QgsPointXY(point.x() - step_size/1.2, point.y() + step_size/1.2),
+        QgsPointXY(point.x() - step_size/1.2, point.y() - step_size/1.2)
     ]
     return neighbors
 
@@ -69,20 +71,7 @@ def reconstruct_path(node):
         path.append(node['point'])
         node = node.get('parent', None)
     return path[::-1]  # 返回从起点到终点的路径
-'''
-def add_path_to_map(path, line_layer):
-    """将生成的路径添加到地图中"""
-    if len(path) < 2:
-        return  # 路径点不足无法生成线
 
-    line_feature = QgsFeature()
-    line_geom = QgsGeometry.fromPolylineXY(path)
-    line_feature.setGeometry(line_geom)
-
-    line_layer.dataProvider().addFeature(line_feature)
-    line_layer.updateExtents()
-    QgsProject.instance().addMapLayer(line_layer)
-'''
 from qgis.core import QgsVectorLayer, QgsFeature, QgsGeometry, QgsProject
 
 def add_path_to_map(path):
@@ -141,12 +130,13 @@ import numpy as np
 from scipy.special import comb
 
 
-def smooth_path_with_bspline(control_points, num_points=100):
+def smooth_path_with_bspline(control_points, restricted_layer,num_points=100):
     """
-    生成三次贝塞尔曲线
-    :param control_points: 控制点的列表 [QgsPointXY, ...]
-    :param num_points: 曲线上的点数
-    :return: 曲线的点列表
+    计算贝塞尔曲线并检查每一段是否与禁行区域相交
+    control_points: 控制点列表 [QgsPointXY, ...]
+    num_points: 曲线上的点的数量
+    restricted_layer: 禁行区域图层
+    返回一个列表，包含贝塞尔曲线上的所有点
     """
     n = len(control_points) - 1  # 控制点数目
     t = np.linspace(0, 1, num_points)  # t 的取值范围
@@ -162,4 +152,38 @@ def smooth_path_with_bspline(control_points, num_points=100):
     # 生成曲线上的点
     bezier_path = [QgsPointXY(x, y) for x, y in zip(bezier_x, bezier_y)]
 
-    return bezier_path
+    # 检查曲线上的每个小段是否与禁行区域相交
+    filtered_bezier_path = [bezier_path[0]]  # 将第一个点加入路径
+
+    for i in range(1, len(bezier_path)):
+        # 当前段的起点和终点
+        start_point = bezier_path[i - 1]
+        end_point = bezier_path[i]
+
+        # 检查线段是否与禁行区域相交
+        if not check_segment_intersects_with_restricted_area(start_point, end_point, restricted_layer):
+            filtered_bezier_path.append(end_point)  # 如果没有相交，则加入路径
+
+    return filtered_bezier_path
+
+
+def check_segment_intersects_with_restricted_area(start_point, end_point, restricted_layer):
+    """
+    检查从起点到终点的线段是否与禁行区域相交
+    :param start_point: 起点 QgsPointXY
+    :param end_point: 终点 QgsPointXY
+    :param restricted_layer: 禁行区域图层
+    :return: 如果相交，返回 True；否则返回 False
+    """
+    # 创建从起点到终点的线段
+    segment = QgsGeometry.fromPolylineXY([start_point, end_point])
+
+    # 检查该线段是否与禁行区域相交
+    for restricted in restricted_layer.getFeatures():
+        restricted_geom = restricted.geometry()
+        if segment.intersects(restricted_geom):
+            return True  # 如果线段与禁行区域相交，返回 True
+
+    return False  # 如果没有相交，返回 False
+
+

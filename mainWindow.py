@@ -1,6 +1,7 @@
 import sys
 import os
 import traceback
+import time
 from qgis.core import QgsProject, QgsLayerTreeModel, QgsCoordinateReferenceSystem, QgsMapSettings, QgsMapLayer, \
     QgsVectorLayer, QgsMapLayerType, QgsField,QgsVectorFileWriter,QgsFeature,QgsPointXY,QgsGeometry,QgsFields,QgsWkbTypes,QgsSpatialIndex
 from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature,QgsMapToolPan
@@ -9,7 +10,7 @@ from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox,QInputDialog
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,\
-    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline
+    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area
 PROJECT = QgsProject.instance()
 
 # 完整图层
@@ -350,6 +351,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
     def actionPLANTriggered(self):
+        a=0;b=0;c=0;d=0;# a为文本打印耗时,b为生成节点并判断是否香蕉时长,c为A*计算
         point_layer = self.layerTreeView.currentLayer()
         provider = point_layer.dataProvider()
 
@@ -384,64 +386,99 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         open_set.append(start_node)
 
         while open_set:
+            c_time_start = time.time()
             # 按照f = g + h的值排序，选择最优节点
             current_node = min(open_set, key=lambda node: node['g'] + node['h'])
             open_set.remove(current_node)
+            c_time_end = time.time()
+            c += c_time_end - c_time_start
 
             # 如果到达终点，则返回路径
-            if current_node['point'].distance(end_point) < 0.5:  # 允许一定范围内到达
+            if current_node['point'].distance(end_point) < 0.6:  # 允许一定范围内到达
 
                 while open_set:
+                    c_time_start = time.time()
                     # 按照f = g + h的值排序，选择最优节点
                     current_node = min(open_set, key=lambda node: node['g'] + node['h'])
                     open_set.remove(current_node)
-
+                    c_time_end = time.time()
+                    c += c_time_end - c_time_start
                     # 如果到达终点，则返回路径
-                    if current_node['point'].distance(end_point) < 0.05:  # 允许一定范围内到达
+                    if current_node['point'].distance(end_point) < 0.01:  # 允许一定范围内到达
+
+
+
                         print("已找到路径")
+
+
+
                         list1 = reconstruct_path(current_node)
-                        list2 = smooth_path_with_bspline(list1)
+                        list2 = smooth_path_with_bspline(list1,restricted_layer)
 
                         add_path_to_map(list1)
                         add_path_to_map(list2)
+
+                        print(f"生产临近点耗时{a:.3f}")
+                        print(f"路径计算耗时{b:.3f}")
+                        print(f"A*计算权值耗时{c:.3f}")
+                        print(f"计算是否接触耗时{d:.3f}")
                         return reconstruct_path(current_node)
+
+
+                    print(current_node['point'].distance(end_point))
+
+
 
                     # 将当前节点加入已探索的节点
                     closed_set.append(current_node)
-
+                    b_time_start = time.time()
                     # 生成邻近节点，并检查是否与陆地或禁行区域相交
-                    neighbors = generate_neighbors(current_node['point'],0.05)
+                    a_time_start = time.time()
+                    neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+                    a_time_end = time.time()
+                    a += a_time_end - a_time_start
+
                     for neighbor in neighbors:
                         # 将 QgsPointXY 转换为 QgsGeometry
                         neighbor_geom = QgsGeometry.fromPointXY(neighbor)
-
+                        d_time_start = time.time()
                         # 检查邻近点是否与陆地或禁行区域相交
-                        if any([neighbor_geom.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-                                any([neighbor_geom.intersects(restricted.geometry()) for restricted in
-                                     restricted_layer.getFeatures()]):
+                        if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, restricted_layer):
                             continue  # 如果相交，跳过该节点
+                        d_time_end = time.time()
+                        d += d_time_end - d_time_start
+
                         g_score = current_node['g'] + current_node['point'].distance(neighbor)
                         h_score = neighbor.distance(end_point)
                         neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
 
                         if neighbor_node not in closed_set:
                             open_set.append(neighbor_node)
+                    b_time_end = time.time()
+                    b += b_time_end - b_time_start
 
 
+            print(current_node['point'].distance(end_point))
+
+
+            b_time_start = time.time()
             # 将当前节点加入已探索的节点
             closed_set.append(current_node)
 
             # 生成邻近节点，并检查是否与陆地或禁行区域相交
-            neighbors = generate_neighbors(current_node['point'])
+            a_time_start = time.time()
+            neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+            a_time_end = time.time()
+            a += a_time_end - a_time_start
             for neighbor in neighbors:
                 # 将 QgsPointXY 转换为 QgsGeometry
                 neighbor_geom = QgsGeometry.fromPointXY(neighbor)
-
+                d_time_start = time.time()
                 # 检查邻近点是否与陆地或禁行区域相交
-                if any([neighbor_geom.intersects(land.geometry()) for land in land_layer.getFeatures()]) or \
-                        any([neighbor_geom.intersects(restricted.geometry()) for restricted in
-                             restricted_layer.getFeatures()]):
+                if check_segment_intersects_with_restricted_area(current_node['point'], neighbor,restricted_layer):
                     continue  # 如果相交，跳过该节点
+                d_time_end = time.time()
+                d += d_time_end - d_time_start
 
                 g_score = current_node['g'] + current_node['point'].distance(neighbor)
                 h_score = neighbor.distance(end_point)
@@ -449,6 +486,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 if neighbor_node not in closed_set:
                     open_set.append(neighbor_node)
+            b_time_end = time.time()
+            b+= b_time_end - b_time_start
         print("未找到合适路径")
         return None  # 未找到有效路径
 
