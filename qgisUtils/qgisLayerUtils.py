@@ -3,7 +3,8 @@ from qgis.gui import QgsMapCanvas
 import os
 import os.path as osp
 from qgisUtils.yoyiFile import getFileSize
-from osgeo import ogr
+from osgeo import ogr,gdal
+
 
 PROJECT = QgsProject.instance()
 qgisDataTypeDict = {
@@ -58,6 +59,7 @@ def addMapLayer(layer:QgsMapLayer,mapCanvas:QgsMapCanvas,firstAddLayer=False):
 
 def list_layers_in_s57(file_path):
     # 使用OGR打开文件
+    print("获取图层名")
     ds = ogr.Open(file_path)
     if ds is None:
         return "Failed open S57"
@@ -71,30 +73,48 @@ def list_layers_in_s57(file_path):
 
     return layer_names
 
+'''
 def addS57Layers(self, vectorFilePath, layers):
     valid_layers = list_layers_in_s57(vectorFilePath)
     for layer in layers:
         if layer in valid_layers:
             self.addS57Layer(vectorFilePath, layer)
-
+'''
 def readRasterFile(rasterFilePath):
+    print("读取栅格图层中")
     rasterLayer = QgsRasterLayer(rasterFilePath,osp.basename(rasterFilePath))
     return rasterLayer
 
 def readVectorFile(vectorFilePath):
+    print("读取矢量图层中")
     vectorLayer = QgsVectorLayer(vectorFilePath,osp.basename(vectorFilePath),"ogr")
     return vectorLayer
 
-def readS57File(vectorFilePath, layer_name):
-    assert vectorFilePath[-3:] == "000"
-    vectorLayer = QgsVectorLayer(
-        vectorFilePath+f"|layername={layer_name}",
-        osp.basename(vectorFilePath[:-4]+f"|{layer_name}"),
-        "ogr",
-    )
 
-    # 经检查LNDARE图层有默认渲染器错误问题
-    # 套用LUT颜色，顺便修复LNDARE
+def readS57File(vectorFilePath, layer_name):
+    print("准备加载文件")
+    assert vectorFilePath[-3:] == "000"
+    print("开始加载文件")
+
+    # 使用 ogr 驱动加载 S57 图层
+    vectorLayer = QgsVectorLayer(
+        f"{vectorFilePath}|layername={layer_name}",  # 使用正确的路径格式
+        osp.basename(vectorFilePath[:-4]) + f"|{layer_name}",
+        "ogr"
+    )
+    if not vectorLayer.isEditable():
+        print("The layer is in read-only mode.")
+    else:
+        print("The layer is editable.")
+
+    # 检查图层是否成功加载
+    if vectorLayer.isValid():
+        print(f"load layer {layer_name}")
+    else:
+        print(f"没有成功加载{layer_name}")
+
+
+    # 如果加载成功，可以在此添加你的渲染器配置
     if layer_name in color_LUT:
         # 创建一个新的填充符号
         color, style = color_LUT[layer_name]
@@ -109,7 +129,10 @@ def readS57File(vectorFilePath, layer_name):
         line_symbol = QgsLineSymbol.createSimple({'color': color, 'style': style})
         renderer = QgsSingleSymbolRenderer(line_symbol)
         vectorLayer.setRenderer(renderer)
+
     return vectorLayer
+
+
 def getRasterLayerAttrs(rasterLayer:QgsRasterLayer):
 
     rdp: QgsRasterDataProvider = rasterLayer.dataProvider()
@@ -146,17 +169,44 @@ def getVectorLayerAttrs(vectorLayer:QgsVectorLayer):
     return resDict
 
 def list_layers_in_s57(file_path):
+
+    # 查看 GDAL 版本
+    print("GDAL Version:", gdal.__version__)
+    print(ogr)
     # 使用OGR打开文件
+    print("ogr打开海图文件ing")
     ds = ogr.Open(file_path)
+    print(ds)
+    # 获取数据源格式
+    driver = ds.GetDriver()
+    print(f"数据源格式: {driver.GetDescription()}")
+
+    # 获取图层数量
+    layer_count = ds.GetLayerCount()
+    print(f"图层数量: {layer_count}")
+
     if ds is None:
+        print("打开失败")
         return "Failed open S57"
+    # 获取数据源描述（文件路径）
+    print(f"数据源描述: {ds.GetDescription()}")
+    # 获取元数据
+    metadata = ds.GetMetadata()
+    if metadata:
+        print("数据源元数据:")
+        for key, value in metadata.items():
+            print(f"{key}: {value}")
+    else:
+        print("没有元数据")
 
     # 列出文件中的所有图层
     layer_names = []
     for i in range(ds.GetLayerCount()):
+
         layer = ds.GetLayerByIndex(i)
         if layer:
             layer_names.append(layer.GetName())
+            print(layer.GetName())
 
     return layer_names
 

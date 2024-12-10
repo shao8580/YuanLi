@@ -10,7 +10,7 @@ from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox,QInputDialog
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,\
-    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area
+    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area,has_forced_neighbors,a_star_search
 PROJECT = QgsProject.instance()
 
 # 完整图层
@@ -79,7 +79,8 @@ s57_layer_sheet = [
 "TS_FEB",
 "M_COVR",
 "M_NSYS",
-"M_QUAL"
+"M_QUAL",
+"DSID"
 
 
 ]
@@ -88,6 +89,8 @@ s57_layer_sheet.reverse()
 # s57_layer_sheet = ['LIGHTS','LNDARE','DEPARE',"ADMARE","RESARE"]
 # 部分图层
 s57_layer_sheet_1 = ['LIGHTS','LNDARE',"RESARE","HRBARE"]
+
+# s57_layer_sheet = ["DSID","Point","Line","Area","Meta"]
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -311,8 +314,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         data_file, ext = QFileDialog.getOpenFileName(self, '打开', '',
                                                      "S-57 map (*.000);;All Files (*)")
         if data_file:
+
             item, ok = QInputDialog.getItem(self, "选择打开方式", "请选择一个S57浏览方式:", ["all","section","3"], 0, False)
             if item=="all":
+                print("查看全部图层")
                 self.addS57Layers(data_file, s57_layer_sheet)
             if item=="section":
                 self.addS57Layers(data_file, s57_layer_sheet_1)
@@ -351,145 +356,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
     def actionPLANTriggered(self):
-        a=0;b=0;c=0;d=0;# a为文本打印耗时,b为生成节点并判断是否香蕉时长,c为A*计算
-        point_layer = self.layerTreeView.currentLayer()
-        provider = point_layer.dataProvider()
-
-        # 获取所有点要素
-        all_features = [feat for feat in provider.getFeatures()]
-        # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
-        # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
-        valid_features = [feat for feat in all_features if
-                          not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
-        # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
-        sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
-        print(sorted_features)
-        # start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
-        # end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
-        # print(start_point, end_point)
-        start_point = sorted_features[0].geometry().asPoint()
-        end_point = sorted_features[-1].geometry().asPoint()
-        print(start_point)
-        print(end_point)
-        # start_point = start_point_1
-        # end_point = sorted_features[1]
-        all_layers = [layer for layer in QgsProject.instance().mapLayers().values()]
-        land_layer = all_layers[2]
-        restricted_layer = all_layers[3]
-
-
-        open_set = []  # 存储待探索的节点
-        closed_set = []  # 存储已经探索过的节点
-
-        # 初始化起点
-        start_node = {'point': start_point, 'g': 0, 'h': start_point.distance(end_point)}
-        open_set.append(start_node)
-
-        while open_set:
-            c_time_start = time.time()
-            # 按照f = g + h的值排序，选择最优节点
-            current_node = min(open_set, key=lambda node: node['g'] + node['h'])
-            open_set.remove(current_node)
-            c_time_end = time.time()
-            c += c_time_end - c_time_start
-
-            # 如果到达终点，则返回路径
-            if current_node['point'].distance(end_point) < 0.6:  # 允许一定范围内到达
-
-                while open_set:
-                    c_time_start = time.time()
-                    # 按照f = g + h的值排序，选择最优节点
-                    current_node = min(open_set, key=lambda node: node['g'] + node['h'])
-                    open_set.remove(current_node)
-                    c_time_end = time.time()
-                    c += c_time_end - c_time_start
-                    # 如果到达终点，则返回路径
-                    if current_node['point'].distance(end_point) < 0.01:  # 允许一定范围内到达
-
-
-
-                        print("已找到路径")
-
-
-
-                        list1 = reconstruct_path(current_node)
-                        list2 = smooth_path_with_bspline(list1,restricted_layer)
-
-                        add_path_to_map(list1)
-                        add_path_to_map(list2)
-
-                        print(f"生产临近点耗时{a:.3f}")
-                        print(f"路径计算耗时{b:.3f}")
-                        print(f"A*计算权值耗时{c:.3f}")
-                        print(f"计算是否接触耗时{d:.3f}")
-                        return reconstruct_path(current_node)
-
-
-                    print(current_node['point'].distance(end_point))
-
-
-
-                    # 将当前节点加入已探索的节点
-                    closed_set.append(current_node)
-                    b_time_start = time.time()
-                    # 生成邻近节点，并检查是否与陆地或禁行区域相交
-                    a_time_start = time.time()
-                    neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
-                    a_time_end = time.time()
-                    a += a_time_end - a_time_start
-
-                    for neighbor in neighbors:
-                        # 将 QgsPointXY 转换为 QgsGeometry
-                        neighbor_geom = QgsGeometry.fromPointXY(neighbor)
-                        d_time_start = time.time()
-                        # 检查邻近点是否与陆地或禁行区域相交
-                        if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, restricted_layer):
-                            continue  # 如果相交，跳过该节点
-                        d_time_end = time.time()
-                        d += d_time_end - d_time_start
-
-                        g_score = current_node['g'] + current_node['point'].distance(neighbor)
-                        h_score = neighbor.distance(end_point)
-                        neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
-
-                        if neighbor_node not in closed_set:
-                            open_set.append(neighbor_node)
-                    b_time_end = time.time()
-                    b += b_time_end - b_time_start
-
-
-            print(current_node['point'].distance(end_point))
-
-
-            b_time_start = time.time()
-            # 将当前节点加入已探索的节点
-            closed_set.append(current_node)
-
-            # 生成邻近节点，并检查是否与陆地或禁行区域相交
-            a_time_start = time.time()
-            neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
-            a_time_end = time.time()
-            a += a_time_end - a_time_start
-            for neighbor in neighbors:
-                # 将 QgsPointXY 转换为 QgsGeometry
-                neighbor_geom = QgsGeometry.fromPointXY(neighbor)
-                d_time_start = time.time()
-                # 检查邻近点是否与陆地或禁行区域相交
-                if check_segment_intersects_with_restricted_area(current_node['point'], neighbor,restricted_layer):
-                    continue  # 如果相交，跳过该节点
-                d_time_end = time.time()
-                d += d_time_end - d_time_start
-
-                g_score = current_node['g'] + current_node['point'].distance(neighbor)
-                h_score = neighbor.distance(end_point)
-                neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
-
-                if neighbor_node not in closed_set:
-                    open_set.append(neighbor_node)
-            b_time_end = time.time()
-            b+= b_time_end - b_time_start
-        print("未找到合适路径")
-        return None  # 未找到有效路径
+        a_star_search(self)
 
     def return_path(self,node):
         """从目标节点向回追踪路径"""
@@ -625,7 +492,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             addMapLayer(S57Layer, self.mapCanvas)
 
     def addS57Layers(self, vectorFilePath, layers):
+        print("开始添加图层")
         valid_layers = list_layers_in_s57(vectorFilePath)
+        # valid_layers = s57_layer_sheet
         for layer in layers:
             if layer in valid_layers:
                 self.addS57Layer(vectorFilePath, layer)

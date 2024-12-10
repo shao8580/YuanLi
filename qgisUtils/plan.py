@@ -2,6 +2,8 @@ from qgis.core import QgsGeometry, QgsPointXY, QgsFeature, QgsSpatialIndex,QgsPr
 from qgis.core import QgsPointXY, QgsGeometry
 import numpy as np
 from scipy.interpolate import BarycentricInterpolator
+import sympy as sp
+from math import comb
 '''
 def find_path(start_point, end_point, land_layer, restricted_layer):
     """
@@ -50,7 +52,8 @@ def generate_neighbors(point,step=0.3):
     """生成当前点的邻近点"""
     # step_size = 0.5  调整步长以增加精度
     # print(time.time())
-    step_size = max(0.01, step/4)
+    step_size = max(0.01,step*0.25)
+    # step_size = 0.001
     neighbors = [
         QgsPointXY(point.x() + step_size, point.y()),
         QgsPointXY(point.x() - step_size, point.y()),
@@ -61,9 +64,36 @@ def generate_neighbors(point,step=0.3):
         QgsPointXY(point.x() - step_size/1.2, point.y() + step_size/1.2),
         QgsPointXY(point.x() - step_size/1.2, point.y() - step_size/1.2)
     ]
+
     return neighbors
 
+def has_forced_neighbors(point,direction,land_layer,restricted_layer):
+    """
+    检查当前节点是否有强迫邻居
+    :param point: 当前节点 (QgsPointXY)
+    :param direction: 当前跳跃的方向 (tuple: dx, dy)
+    :param restricted_layer: 禁行区域 (QgsVectorLayer)
+    :param land_layer: 陆地区域 (QgsVectorLayer)
+    :return: bool 是否存在强迫邻居
+    """
+    dx, dy = direction
+    x, y = point.x(), point.y()
 
+    # 当前位置的邻居坐标
+    neighbors = [
+        QgsPointXY(x + dx * 0.05, y),  # 水平邻居
+        QgsPointXY(x, y + dy * 0.05),  # 垂直邻居
+        QgsPointXY(x + dx * 0.05, y + dy * 0.05)  # 对角线邻居
+    ]
+
+    # 检查是否与障碍物相交
+    for neighbor in neighbors:
+        geom = QgsGeometry.fromPointXY(neighbor)
+        if any([geom.intersects(feature.geometry()) for feature in restricted_layer.getFeatures()]) or \
+                any([geom.intersects(feature.geometry()) for feature in land_layer.getFeatures()]):
+            return True  # 存在障碍
+
+    return False  # 没有强迫邻居
 def reconstruct_path(node):
     """从目标节点向回追踪路径"""
     path = []
@@ -149,6 +179,8 @@ def smooth_path_with_bspline(control_points, restricted_layer,num_points=100):
     bezier_x = sum(comb(n, i) * ((1 - t) ** (n - i)) * (t ** i) * x_coords[i] for i in range(n + 1))
     bezier_y = sum(comb(n, i) * ((1 - t) ** (n - i)) * (t ** i) * y_coords[i] for i in range(n + 1))
 
+    print_bezier_equation(control_points)
+
     # 生成曲线上的点
     bezier_path = [QgsPointXY(x, y) for x, y in zip(bezier_x, bezier_y)]
 
@@ -185,5 +217,180 @@ def check_segment_intersects_with_restricted_area(start_point, end_point, restri
             return True  # 如果线段与禁行区域相交，返回 True
 
     return False  # 如果没有相交，返回 False
+
+def print_bezier_equation(control_points):
+    n = len(control_points) - 1  # 控制点数目
+    t = sp.symbols('t')
+
+    # 获取控制点的 x 和 y 坐标
+    x_coords = [control_points[i].x() for i in range(len(control_points))]
+    y_coords = [control_points[i].y() for i in range(len(control_points))]
+
+    # 计算贝塞尔曲线方程
+    bezier_x_eq = sum(comb(n, i) * ((1 - t) ** (n - i)) * (t ** i) * x_coords[i] for i in range(n + 1))
+    bezier_y_eq = sum(comb(n, i) * ((1 - t) ** (n - i)) * (t ** i) * y_coords[i] for i in range(n + 1))
+
+    # 打印贝塞尔曲线的方程
+    print(f"贝塞尔曲线的x方程: {bezier_x_eq}")
+    print(f"贝塞尔曲线的y方程: {bezier_y_eq}")
+
+
+def a_star_search(self):
+    """
+    使用 A* 算法搜索路径，并检查每个邻近点是否与禁行区域相交。
+
+    参数:
+    start_point (QgsPointXY): 起点
+    end_point (QgsPointXY): 终点
+    restricted_layer (QgsVectorLayer): 禁行区域图层
+    land_layer (QgsVectorLayer): 陆地图层
+
+    返回:
+    list: 生成的路径列表，或者 None（如果没有找到路径）
+    """
+
+
+    a = 0;
+    b = 0;
+    c = 0;
+    d = 0;  # a为文本打印耗时,b为生成节点并判断是否相交时长,c为A*计算
+    point_layer = self.layerTreeView.currentLayer()
+    provider = point_layer.dataProvider()
+
+    # 获取所有点要素
+    all_features = [feat for feat in provider.getFeatures()]
+    # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+    # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+    valid_features = [feat for feat in all_features if
+                      not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
+    # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
+    sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
+    print(sorted_features)
+    # start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
+    # end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
+    # print(start_point, end_point)
+    start_point = sorted_features[0].geometry().asPoint()
+    end_point = sorted_features[-1].geometry().asPoint()
+    print("起始点")
+    print(start_point)
+    print("终点")
+    print(end_point)
+    # start_point = start_point_1
+    # end_point = sorted_features[1]
+    all_layers = [layer for layer in QgsProject.instance().mapLayers().values()]
+    matching_layers = [index for index, layer in enumerate(all_layers)
+                       if 'LNDARE' in layer.name() or 'RESARE' in layer.name()]
+    print(all_layers)
+    land_layer = all_layers[matching_layers[0]]
+    restricted_layer = all_layers[matching_layers[1]]
+
+    open_set = []  # 存储待探索的节点
+    closed_set = []  # 存储已经探索过的节点
+
+    # 初始化起点
+    start_node = {'point': start_point, 'g': 0, 'h': start_point.distance(end_point)}
+    open_set.append(start_node)
+
+    while open_set:
+        c_time_start = time.time()
+        # 按照f = g + h的值排序，选择最优节点
+        current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+        open_set.remove(current_node)
+        c_time_end = time.time()
+        c += c_time_end - c_time_start
+
+        # 如果到达终点，则返回路径
+        if current_node['point'].distance(end_point) < 0.6:  # 允许一定范围内到达
+
+            while open_set:
+                c_time_start = time.time()
+                # 按照f = g + h的值排序，选择最优节点
+                current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+                open_set.remove(current_node)
+                c_time_end = time.time()
+                c += c_time_end - c_time_start
+                # 如果到达终点，则返回路径
+                if current_node['point'].distance(end_point) < 0.01:  # 允许一定范围内到达
+
+                    print("已找到路径")
+
+                    list1 = reconstruct_path(current_node)
+                    list2 = smooth_path_with_bspline(list1, restricted_layer)
+
+                    add_path_to_map(list1)
+                    add_path_to_map(list2)
+
+                    print(f"生产临近点耗时{a:.3f}")
+                    print(f"路径计算耗时{b:.3f}")
+                    print(f"A*计算权值耗时{c:.3f}")
+                    print(f"计算是否接触耗时{d:.3f}")
+                    return reconstruct_path(current_node)
+
+                print(current_node['point'].distance(end_point))
+
+                # 将当前节点加入已探索的节点
+                closed_set.append(current_node)
+                b_time_start = time.time()
+                # 生成邻近节点，并检查是否与陆地或禁行区域相交
+                a_time_start = time.time()
+                neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+                a_time_end = time.time()
+                a += a_time_end - a_time_start
+
+                for neighbor in neighbors:
+                    # 将 QgsPointXY 转换为 QgsGeometry
+                    neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+                    d_time_start = time.time()
+                    # 检查邻近点是否与陆地或禁行区域相交
+                    if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, restricted_layer):
+                        continue  # 如果相交，跳过该节点
+                    if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, land_layer):
+                        continue
+                    d_time_end = time.time()
+                    d += d_time_end - d_time_start
+
+                    # g_score = current_node['g'] + current_node['point'].distance(neighbor)
+                    h_score = neighbor.distance(end_point)
+                    neighbor_node = {'point': neighbor, 'g': 0, 'h': h_score, 'parent': current_node}
+
+                    if neighbor_node not in closed_set:
+                        open_set.append(neighbor_node)
+                b_time_end = time.time()
+                b += b_time_end - b_time_start
+
+        print(current_node['point'].distance(end_point))
+
+        b_time_start = time.time()
+        # 将当前节点加入已探索的节点
+        closed_set.append(current_node)
+
+        # 生成邻近节点，并检查是否与陆地或禁行区域相交
+        a_time_start = time.time()
+        neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+        a_time_end = time.time()
+        a += a_time_end - a_time_start
+        for neighbor in neighbors:
+            # 将 QgsPointXY 转换为 QgsGeometry
+            neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+            d_time_start = time.time()
+            # 检查邻近点是否与陆地或禁行区域相交
+            if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, restricted_layer):
+                continue  # 如果相交，跳过该节点
+            if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, land_layer):
+                continue
+            d_time_end = time.time()
+            d += d_time_end - d_time_start
+
+            g_score = current_node['g'] + current_node['point'].distance(neighbor)
+            h_score = neighbor.distance(end_point)
+            neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
+
+            if neighbor_node not in closed_set:
+                open_set.append(neighbor_node)
+        b_time_end = time.time()
+        b += b_time_end - b_time_start
+    print("未找到合适路径")
+    return None  # 未找到有效路径
+
 
 
