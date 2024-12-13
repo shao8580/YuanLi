@@ -38,4 +38,9 @@
 ![image](https://github.com/user-attachments/assets/afa8adfe-f511-44ed-9d9c-b65d90de7fcf)
 
 
+12.13
+
+增加空间索引，优化融合区域下路径规划交集判断
+
+
 
