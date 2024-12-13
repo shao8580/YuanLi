@@ -235,7 +235,7 @@ def print_bezier_equation(control_points):
     print(f"贝塞尔曲线的y方程: {bezier_y_eq}")
 
 
-def a_star_search(self):
+def a_star_search(self,direction=0):
     """
     使用 A* 算法搜索路径，并检查每个邻近点是否与禁行区域相交。
 
@@ -269,20 +269,41 @@ def a_star_search(self):
     # start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
     # end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
     # print(start_point, end_point)
-    start_point = sorted_features[0].geometry().asPoint()
-    end_point = sorted_features[-1].geometry().asPoint()
+    if direction == 0:
+        start_point = sorted_features[0].geometry().asPoint()
+        end_point = sorted_features[-1].geometry().asPoint()
+    if direction == 1:
+        start_point = sorted_features[-1].geometry().asPoint()
+        end_point = sorted_features[0].geometry().asPoint()
     print("起始点")
     print(start_point)
     print("终点")
     print(end_point)
     # start_point = start_point_1
     # end_point = sorted_features[1]
+
     all_layers = [layer for layer in QgsProject.instance().mapLayers().values()]
     matching_layers = [index for index, layer in enumerate(all_layers)
                        if 'LNDARE' in layer.name() or 'RESARE' in layer.name()]
-    print(all_layers)
+
+    # spatial_indexes = {}
+    # for layer in matching_layers:
+    #     spatial_index = QgsSpatialIndex(all_layers[layer])
+    #     spatial_indexes[all_layers[layer].name()] = spatial_index  # 存储索引
+    #     print(f"空间索引已创建：{all_layers[layer].name()}")
+    # print("全图层如下",all_layers)
+
+    # land_layer_list=[]
+    # restricted_layer_list=[]
+    # for i in range(0,len(matching_layers),2):
+    #     land_layer_list.append(all_layers[matching_layers[i]])
+    #     restricted_layer_list.append(all_layers[matching_layers[i+1]])
+    # print("陆地图层有",land_layer_list)
+    #
+
     land_layer = all_layers[matching_layers[0]]
     restricted_layer = all_layers[matching_layers[1]]
+
 
     open_set = []  # 存储待探索的节点
     closed_set = []  # 存储已经探索过的节点
@@ -342,6 +363,7 @@ def a_star_search(self):
                     neighbor_geom = QgsGeometry.fromPointXY(neighbor)
                     d_time_start = time.time()
                     # 检查邻近点是否与陆地或禁行区域相交
+
                     if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, restricted_layer):
                         continue  # 如果相交，跳过该节点
                     if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, land_layer):
@@ -373,11 +395,15 @@ def a_star_search(self):
             # 将 QgsPointXY 转换为 QgsGeometry
             neighbor_geom = QgsGeometry.fromPointXY(neighbor)
             d_time_start = time.time()
+
             # 检查邻近点是否与陆地或禁行区域相交
             if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, restricted_layer):
                 continue  # 如果相交，跳过该节点
             if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, land_layer):
                 continue
+            # if check_segment_intersects_with_restricted_area_1(current_node['point'], neighbor, spatial_indexes,
+            #                                                  all_layers):
+            #     continue
             d_time_end = time.time()
             d += d_time_end - d_time_start
 
@@ -394,3 +420,33 @@ def a_star_search(self):
 
 
 
+def check_segment_intersects_with_restricted_area_1(start_point, end_point, spatial_index_dict, layer_dict):
+    """
+    使用空间索引检查从起点到终点的线段是否与多个图层的禁行区域相交
+    :param start_point: 起点 QgsPointXY
+    :param end_point: 终点 QgsPointXY
+    :param spatial_index_dict: 包含所有图层空间索引的字典 {图层名: QgsSpatialIndex}
+    :param layer_dict: 包含所有图层的字典 {图层名: QgsVectorLayer}
+    :return: 如果相交，返回相交图层的名称和相交要素ID；否则返回 None
+    """
+    # 创建从起点到终点的线段
+    segment = QgsGeometry.fromPolylineXY([start_point, end_point])
+    bounding_box = segment.boundingBox()
+    print(spatial_index_dict)
+    print(layer_dict)
+    for layer_name, spatial_index in spatial_index_dict.items():
+        # 获取与线段边界框相交的要素ID
+        print(layer_name)
+        print(spatial_index)
+        potential_ids = spatial_index.intersects(bounding_box)
+        if not potential_ids:
+            continue
+
+        # 检查实际几何是否相交
+        layer = layer_dict[layer_name]
+        for feature_id in potential_ids:
+            feature = layer.getFeature(feature_id)
+            if segment.intersects(feature.geometry()):
+                return layer_name, feature_id  # 返回相交图层名称和要素ID
+
+    return None  # 如果没有相交，返回 None

@@ -88,7 +88,7 @@ s57_layer_sheet.reverse()
 
 # s57_layer_sheet = ['LIGHTS','LNDARE','DEPARE',"ADMARE","RESARE"]
 # 部分图层
-s57_layer_sheet_1 = ['LIGHTS','LNDARE',"RESARE","HRBARE"]
+s57_layer_sheet_1 = ['LNDARE',"RESARE"]
 
 # s57_layer_sheet = ["DSID","Point","Line","Area","Meta"]
 
@@ -280,7 +280,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             elif filePath.split(".")[-1] in ["shp", "SHP", "gpkg", "geojson", "kml"]:
                 self.addVectorLayer(filePath)
             elif filePath.split(".")[-1] in ["000"]:
-                self.addS57Layers(filePath, s57_layer_sheet)
+                self.addS57Layers(filePath, s57_layer_sheet_1)
             elif filePath == "":
                 pass
             else:
@@ -356,7 +356,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
     def actionPLANTriggered(self):
-        a_star_search(self)
+        if a_star_search(self,0)==None:
+            a_star_search(self,1)
+
 
     def return_path(self,node):
         """从目标节点向回追踪路径"""
