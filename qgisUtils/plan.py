@@ -235,7 +235,7 @@ def print_bezier_equation(control_points):
     print(f"贝塞尔曲线的y方程: {bezier_y_eq}")
 
 
-def a_star_search(self,direction=0):
+def a_star_search_1(self,direction=0):
     """
     使用 A* 算法搜索路径，并检查每个邻近点是否与禁行区域相交。
 
@@ -401,9 +401,6 @@ def a_star_search(self,direction=0):
                 continue  # 如果相交，跳过该节点
             if check_segment_intersects_with_restricted_area(current_node['point'], neighbor, land_layer):
                 continue
-            # if check_segment_intersects_with_restricted_area_1(current_node['point'], neighbor, spatial_indexes,
-            #                                                  all_layers):
-            #     continue
             d_time_end = time.time()
             d += d_time_end - d_time_start
 
@@ -420,33 +417,188 @@ def a_star_search(self,direction=0):
 
 
 
-def check_segment_intersects_with_restricted_area_1(start_point, end_point, spatial_index_dict, layer_dict):
+def check_segment_intersects_with_restricted_area_1(start_point, end_point, spatial_indexes):
     """
-    使用空间索引检查从起点到终点的线段是否与多个图层的禁行区域相交
-    :param start_point: 起点 QgsPointXY
-    :param end_point: 终点 QgsPointXY
-    :param spatial_index_dict: 包含所有图层空间索引的字典 {图层名: QgsSpatialIndex}
-    :param layer_dict: 包含所有图层的字典 {图层名: QgsVectorLayer}
-    :return: 如果相交，返回相交图层的名称和相交要素ID；否则返回 None
+    检查线段是否与多个限制区域的图层相交。
+
+    :param start_point: 起点 (QgsPointXY)
+    :param end_point: 终点 (QgsPointXY)
+    :param spatial_indexes: 包含图层和对应空间索引的字典
+    :return: 如果相交返回 True，否则返回 False
     """
-    # 创建从起点到终点的线段
+    # 创建线段几何
     segment = QgsGeometry.fromPolylineXY([start_point, end_point])
-    bounding_box = segment.boundingBox()
-    print(spatial_index_dict)
-    print(layer_dict)
-    for layer_name, spatial_index in spatial_index_dict.items():
-        # 获取与线段边界框相交的要素ID
-        print(layer_name)
-        print(spatial_index)
-        potential_ids = spatial_index.intersects(bounding_box)
-        if not potential_ids:
-            continue
+    segment_bbox = segment.boundingBox()  # 获取线段的边界框
 
-        # 检查实际几何是否相交
-        layer = layer_dict[layer_name]
-        for feature_id in potential_ids:
-            feature = layer.getFeature(feature_id)
+    # 遍历每个空间索引进行检查
+    for layer_name, index_info in spatial_indexes.items():
+        layer = index_info["layer"]
+        spatial_index = index_info["spatial_index"]
+
+        # 在空间索引中快速找到与线段边界框可能相交的要素 ID
+        potential_ids = spatial_index.intersects(segment_bbox)
+
+        # 遍历可能相交的要素，检查精确的几何相交情况
+        for fid in potential_ids:
+            feature = layer.getFeature(fid)
             if segment.intersects(feature.geometry()):
-                return layer_name, feature_id  # 返回相交图层名称和要素ID
+                print(f"线段与图层 {layer_name} 的要素 ID {fid} 相交")
+                return True  # 如果找到相交的要素，立即返回 True
 
-    return None  # 如果没有相交，返回 None
+    return False  # 如果所有图层均未相交，返回 False
+
+def a_star_search(self,direction=0):
+    """
+    使用 A* 算法搜索路径，使用空间矢量索引优化大区域计算
+
+    参数:
+    start_point (QgsPointXY): 起点
+    end_point (QgsPointXY): 终点
+    restricted_layer (QgsVectorLayer): 禁行区域图层
+    land_layer (QgsVectorLayer): 陆地图层
+
+    返回:
+    list: 生成的路径列表，或者 None（如果没有找到路径）
+    """
+    a = 0;
+    b = 0;
+    c = 0;
+    d = 0;  # a为文本打印耗时,b为生成节点并判断是否相交时长,c为A*计算
+    point_layer = self.layerTreeView.currentLayer()
+    provider = point_layer.dataProvider()
+
+    # 获取所有点要素
+    all_features = [feat for feat in provider.getFeatures()]
+    # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+    # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+    valid_features = [feat for feat in all_features if
+                      not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
+    # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
+    sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
+    print(sorted_features)
+    if direction == 0:
+        start_point = sorted_features[0].geometry().asPoint()
+        end_point = sorted_features[-1].geometry().asPoint()
+    if direction == 1:
+        start_point = sorted_features[-1].geometry().asPoint()
+        end_point = sorted_features[0].geometry().asPoint()
+    print("起始点")
+    print(start_point)
+    print("终点")
+    print(end_point)
+    # 优化all_layers为字典，创建空间索引
+    all_layers = {layer.name(): layer for layer in QgsProject.instance().mapLayers().values()}
+    matching_layers = [layer for layer in all_layers.values() if 'LNDARE' in layer.name() or 'RESARE' in layer.name()]
+
+    spatial_indexes = {}  # 用于存储每个图层的空间索引
+
+    for layer in matching_layers:
+        spatial_index = QgsSpatialIndex(layer.getFeatures())  # 基于所有要素创建空间索引
+        spatial_indexes[layer.name()] = {"layer": layer, "spatial_index": spatial_index}  # 存储索引与图层
+        print(f"空间索引已创建：{layer.name()}")
+
+    print("全图层如下",spatial_indexes)
+    open_set = []  # 存储待探索的节点
+    closed_set = []  # 存储已经探索过的节点
+    # 初始化起点
+    start_node = {'point': start_point, 'g': 0, 'h': start_point.distance(end_point)}
+    open_set.append(start_node)
+
+    while open_set:
+        c_time_start = time.time()
+        # 按照f = g + h的值排序，选择最优节点
+        current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+        open_set.remove(current_node)
+        c_time_end = time.time()
+        c += c_time_end - c_time_start
+
+        # 如果到达终点，则返回路径
+        if current_node['point'].distance(end_point) < 0.6:  # 允许一定范围内到达
+
+            while open_set:
+                c_time_start = time.time()
+                # 按照f = g + h的值排序，选择最优节点
+                current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+                open_set.remove(current_node)
+                c_time_end = time.time()
+                c += c_time_end - c_time_start
+                # 如果到达终点，则返回路径
+                if current_node['point'].distance(end_point) < 0.01:  # 允许一定范围内到达
+
+                    print("已找到路径")
+
+                    list1 = reconstruct_path(current_node)
+                    add_path_to_map(list1)
+
+                    print(f"生产临近点耗时{a:.3f}")
+                    print(f"路径计算耗时{b:.3f}")
+                    print(f"A*计算权值耗时{c:.3f}")
+                    print(f"计算是否接触耗时{d:.3f}")
+                    return reconstruct_path(current_node)
+
+                print(current_node['point'].distance(end_point))
+
+                # 将当前节点加入已探索的节点
+                closed_set.append(current_node)
+                b_time_start = time.time()
+                # 生成邻近节点，并检查是否与陆地或禁行区域相交
+                a_time_start = time.time()
+                neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+                a_time_end = time.time()
+                a += a_time_end - a_time_start
+
+                for neighbor in neighbors:
+                    # 将 QgsPointXY 转换为 QgsGeometry
+                    neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+                    d_time_start = time.time()
+                    # 检查邻近点是否与陆地或禁行区域相交
+
+                    if check_segment_intersects_with_restricted_area_1(current_node['point'], neighbor, spatial_indexes):
+                        continue  # 如果相交，跳过该节点
+
+                    d_time_end = time.time()
+                    d += d_time_end - d_time_start
+
+                    # g_score = current_node['g'] + current_node['point'].distance(neighbor)
+                    h_score = neighbor.distance(end_point)
+                    neighbor_node = {'point': neighbor, 'g': 0, 'h': h_score, 'parent': current_node}
+
+                    if neighbor_node not in closed_set:
+                        open_set.append(neighbor_node)
+                b_time_end = time.time()
+                b += b_time_end - b_time_start
+
+        print(current_node['point'].distance(end_point))
+
+        b_time_start = time.time()
+        # 将当前节点加入已探索的节点
+        closed_set.append(current_node)
+
+        # 生成邻近节点，并检查是否与陆地或禁行区域相交
+        a_time_start = time.time()
+        neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+        a_time_end = time.time()
+        a += a_time_end - a_time_start
+        for neighbor in neighbors:
+            # 将 QgsPointXY 转换为 QgsGeometry
+            neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+            d_time_start = time.time()
+
+            # 检查邻近点是否与陆地或禁行区域相交
+            if check_segment_intersects_with_restricted_area_1(current_node['point'], neighbor, spatial_indexes):
+                continue  # 如果相交，跳过该节点
+
+            d_time_end = time.time()
+            d += d_time_end - d_time_start
+
+            g_score = current_node['g'] + current_node['point'].distance(neighbor)
+            h_score = neighbor.distance(end_point)
+            neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
+
+            if neighbor_node not in closed_set:
+                open_set.append(neighbor_node)
+        b_time_end = time.time()
+        b += b_time_end - b_time_start
+    print("未找到合适路径")
+    return None  # 未找到有效路径
+
