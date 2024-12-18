@@ -356,6 +356,27 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
     def actionPLANTriggered(self):
+        '''
+        point_layer = self.layerTreeView.currentLayer()
+        provider = point_layer.dataProvider()
+        all_features = [feat for feat in provider.getFeatures()]
+        # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+        # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+        valid_features = [feat for feat in all_features if
+                          not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
+        # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
+        sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))
+        print(sorted_features)
+        # start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
+        # end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
+        # print(start_point, end_point)
+        if direction == 0:
+            start_point = sorted_features[0].geometry().asPoint()
+            end_point = sorted_features[-1].geometry().asPoint()
+        if direction == 1:
+            start_point = sorted_features[-1].geometry().asPoint()
+            end_point = sorted_features[0].geometry().asPoint()
+            '''
         if a_star_search(self,0)==None:
             a_star_search(self,1)
 
