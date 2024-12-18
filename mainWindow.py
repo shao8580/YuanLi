@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, 
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,\
     generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area,has_forced_neighbors,a_star_search
 PROJECT = QgsProject.instance()
-#12.16.13:36更改
+#12.18.13:51更改,修改A*起点和终点读取
 # 完整图层
 s57_layer_sheet = [
 "ACHARE",
@@ -356,7 +356,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
     def actionPLANTriggered(self):
-        '''
+
         point_layer = self.layerTreeView.currentLayer()
         provider = point_layer.dataProvider()
         all_features = [feat for feat in provider.getFeatures()]
@@ -367,18 +367,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
         sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))
         print(sorted_features)
-        # start_point = QgsPointXY(121.98, 38.80)  # 起点坐标 (经度: 118.15, 纬度: 24.45)
-        # end_point = QgsPointXY(122.25, 38.99)  # 终点坐标 (经度: 119.5, 纬度: 25.0)
-        # print(start_point, end_point)
-        if direction == 0:
-            start_point = sorted_features[0].geometry().asPoint()
-            end_point = sorted_features[-1].geometry().asPoint()
-        if direction == 1:
-            start_point = sorted_features[-1].geometry().asPoint()
-            end_point = sorted_features[0].geometry().asPoint()
-            '''
-        if a_star_search(self,0)==None:
-            a_star_search(self,1)
+        for i in range(len(sorted_features)-1):
+            start_point = sorted_features[i].geometry().asPoint()
+            end_point = sorted_features[i+1].geometry().asPoint()
+
+            if a_star_search(self,start_point,end_point,0)==None:
+                a_star_search(self, start_point, end_point,1)
 
 
     def return_path(self,node):

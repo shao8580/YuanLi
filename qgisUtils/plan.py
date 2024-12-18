@@ -4,7 +4,7 @@ import numpy as np
 from scipy.interpolate import BarycentricInterpolator
 import sympy as sp
 from math import comb
-#12.16.13:36更改
+#12.18.13:51更改,修改A*起点和终点读取
 '''
 def find_path(start_point, end_point, land_layer, restricted_layer):
     """
@@ -448,7 +448,7 @@ def check_segment_intersects_with_restricted_area_1(start_point, end_point, spat
 
     return False  # 如果所有图层均未相交，返回 False
 
-def a_star_search(self,direction=0):
+def a_star_search(self,start_point,end_point,direction=0):
     """
     使用 A* 算法搜索路径，使用空间矢量索引优化大区域计算
 
@@ -465,24 +465,24 @@ def a_star_search(self,direction=0):
     b = 0;
     c = 0;
     d = 0;  # a为文本打印耗时,b为生成节点并判断是否相交时长,c为A*计算
-    point_layer = self.layerTreeView.currentLayer()
-    provider = point_layer.dataProvider()
+    # point_layer = self.layerTreeView.currentLayer()
+    # provider = point_layer.dataProvider()
 
     # 获取所有点要素
-    all_features = [feat for feat in provider.getFeatures()]
+    # all_features = [feat for feat in provider.getFeatures()]
     # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
     # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
-    valid_features = [feat for feat in all_features if
-                      not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
+    # valid_features = [feat for feat in all_features if
+    #                 not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
     # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
-    sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
-    print(sorted_features)
-    if direction == 0:
-        start_point = sorted_features[0].geometry().asPoint()
-        end_point = sorted_features[-1].geometry().asPoint()
-    if direction == 1:
-        start_point = sorted_features[-1].geometry().asPoint()
-        end_point = sorted_features[0].geometry().asPoint()
+    # sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
+    # print(sorted_features)
+    # if direction == 0:
+    #     start_point = sorted_features[0].geometry().asPoint()
+    #     end_point = sorted_features[-1].geometry().asPoint()
+    # if direction == 1:
+    #     start_point = sorted_features[-1].geometry().asPoint()
+    #     end_point = sorted_features[0].geometry().asPoint()
     print("起始点")
     print(start_point)
     print("终点")
