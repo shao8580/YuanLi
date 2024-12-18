@@ -4,6 +4,7 @@ import numpy as np
 from scipy.interpolate import BarycentricInterpolator
 import sympy as sp
 from math import comb
+#12.16.13:36更改
 '''
 def find_path(start_point, end_point, land_layer, restricted_layer):
     """
