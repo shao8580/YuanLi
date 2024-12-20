@@ -55,6 +55,7 @@
     <addaction name="actionConvert"/>
     <addaction name="actionCheckLine"/>
     <addaction name="actionPLAN"/>
+    <addaction name="actionPLAN_2"/>
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
@@ -63,6 +64,9 @@
     <addaction name="actionLine"/>
     <addaction name="actionPoint"/>
     <addaction name="actionPolygon"/>
+    <addaction name="action_yuan"/>
+    <addaction name="action_ZheXian"/>
+    <addaction name="action_DuoBianXin"/>
    </widget>
    <addaction name="menuOpen"/>
    <addaction name="menuEdit"/>
@@ -167,12 +171,12 @@
   </action>
   <action name="actionCreateLayer">
    <property name="text">
-    <string>创建空白矢量图</string>
+    <string>创建空白矢量点图</string>
    </property>
   </action>
   <action name="actionConvert">
    <property name="text">
-    <string>点图层转换</string>
+    <string>根据点画折线</string>
    </property>
   </action>
   <action name="actionCheckLine">
@@ -182,7 +186,27 @@
   </action>
   <action name="actionPLAN">
    <property name="text">
-    <string>路径规划</string>
+    <string>起终点路径规划</string>
+   </property>
+  </action>
+  <action name="action_yuan">
+   <property name="text">
+    <string>标准图形_圆</string>
+   </property>
+  </action>
+  <action name="action_ZheXian">
+   <property name="text">
+    <string>标准图形_折线</string>
+   </property>
+  </action>
+  <action name="action_DuoBianXin">
+   <property name="text">
+    <string>标准图形_多边形</string>
+   </property>
+  </action>
+  <action name="actionPLAN_2">
+   <property name="text">
+    <string>多边形区域内巡航规划</string>
    </property>
   </action>
  </widget>

@@ -9,7 +9,7 @@ from PyQt5.QtCore import QUrl, QSize, QMimeData, QUrl, Qt,QVariant,QMetaType
 from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox,QInputDialog
-from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,\
+from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,LineMapTool_1,DuoMianTiMapTool,YuanMapTool,\
     generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area,has_forced_neighbors,a_star_search
 PROJECT = QgsProject.instance()
 #12.18.13:51更改,修改A*起点和终点读取
@@ -189,6 +189,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionPolygon.triggered.connect(self.actionPolygonTriggered)
         self.actionPoint.triggered.connect(self.actionPointTriggered)
         self.actionLine.triggered.connect(self.actionLineTriggered)
+        self.action_ZheXian.triggered.connect(self.action_ZheXianTriggered)
+        self.action_yuan.triggered.connect(self.action_yuanTriggered)
+        self.action_DuoBianXin.triggered.connect(self.action_DuoBianXinTriggered)
+
 
         # 单击、双击图层 触发事件
         self.layerTreeView.clicked.connect(self.layerClicked)
@@ -233,6 +237,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.mapCanvas.mapTool().deactivate()
         self.lineTool = LineMapTool(self.mapCanvas, self.editTempLayer, self)
         self.mapCanvas.setMapTool(self.lineTool)
+
+    def action_ZheXianTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if self.mapCanvas.mapTool():
+            self.mapCanvas.mapTool().deactivate()
+        self.lineTool_1 = LineMapTool_1(self.mapCanvas, self.editTempLayer, self)
+        self.mapCanvas.setMapTool(self.lineTool_1)
+
+    def action_yuanTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if self.mapCanvas.mapTool():
+            self.mapCanvas.mapTool().deactivate()
+        self.yuanTool = YuanMapTool(self.mapCanvas, self.editTempLayer, self)
+        self.mapCanvas.setMapTool(self.yuanTool)
+
+    def action_DuoBianXinTriggered(self):
+        if self.editTempLayer == None:
+            QMessageBox.information(self, '警告', '您没有编辑中矢量')
+            return
+        if self.mapCanvas.mapTool():
+            self.mapCanvas.mapTool().deactivate()
+        self.DuoMianTool = DuoMianTiMapTool(self.mapCanvas, self.editTempLayer, self)
+        self.mapCanvas.setMapTool(self.DuoMianTool)
+
+
 
     def layerClicked(self):
         curLayer: QgsMapLayer = self.layerTreeView.currentLayer()
