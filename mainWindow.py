@@ -88,7 +88,7 @@ s57_layer_sheet.reverse()
 
 # s57_layer_sheet = ['LIGHTS','LNDARE','DEPARE',"ADMARE","RESARE"]
 # 部分图层
-s57_layer_sheet_1 = ['LNDARE',"RESARE"]
+s57_layer_sheet_1 = ['LNDARE',"RESARE","DEPCNT"]
 
 # s57_layer_sheet = ["DSID","Point","Line","Area","Meta"]
 

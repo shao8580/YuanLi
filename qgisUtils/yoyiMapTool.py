@@ -536,6 +536,6 @@ class DuoMianTiMapTool(QgsMapToolEmitPoint):
         return points
 
     def deactivate(self):
-        super(YuanMapTool, self).deactivate()
+        super(DuoMianTiMapTool, self).deactivate()
         self.deactivated.emit()
         self.reset()
