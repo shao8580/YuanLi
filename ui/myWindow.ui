@@ -52,14 +52,10 @@
     <addaction name="actionEditShp"/>
     <addaction name="actionSelectFeature"/>
     <addaction name="actionDeleteFeature"/>
-    <addaction name="actionConvert"/>
-    <addaction name="actionCheckLine"/>
-    <addaction name="actionPLAN"/>
-    <addaction name="actionPLAN_2"/>
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
-     <string>创建矢量元素</string>
+     <string>创建</string>
     </property>
     <addaction name="actionLine"/>
     <addaction name="actionPoint"/>
@@ -68,9 +64,25 @@
     <addaction name="action_ZheXian"/>
     <addaction name="action_DuoBianXin"/>
    </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>操作</string>
+    </property>
+    <addaction name="actionConvert"/>
+    <addaction name="actionCheckLine"/>
+    <addaction name="actionPLAN_2"/>
+   </widget>
+   <widget class="QMenu" name="menu_3">
+    <property name="title">
+     <string>自动路径规划</string>
+    </property>
+    <addaction name="actionPLAN"/>
+   </widget>
    <addaction name="menuOpen"/>
    <addaction name="menuEdit"/>
    <addaction name="menu"/>
+   <addaction name="menu_2"/>
+   <addaction name="menu_3"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="dockWidget">

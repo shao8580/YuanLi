@@ -2,6 +2,9 @@ import sys
 import os
 import traceback
 import time
+
+
+from qgis._core import QgsFeatureRequest
 from qgis.core import QgsProject, QgsLayerTreeModel, QgsCoordinateReferenceSystem, QgsMapSettings, QgsMapLayer, \
     QgsVectorLayer, QgsMapLayerType, QgsField,QgsVectorFileWriter,QgsFeature,QgsPointXY,QgsGeometry,QgsFields,QgsWkbTypes,QgsSpatialIndex
 from qgis.gui import QgsLayerTreeView, QgsMapCanvas, QgsLayerTreeMapCanvasBridge, QgsMapToolIdentifyFeature,QgsMapToolPan
@@ -12,6 +15,7 @@ from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, 
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,LineMapTool_1,DuoMianTiMapTool,YuanMapTool,\
     generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area,has_forced_neighbors,a_star_search
 PROJECT = QgsProject.instance()
+
 #12.18.13:51更改,修改A*起点和终点读取
 # 完整图层
 s57_layer_sheet = [
@@ -192,6 +196,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.action_ZheXian.triggered.connect(self.action_ZheXianTriggered)
         self.action_yuan.triggered.connect(self.action_yuanTriggered)
         self.action_DuoBianXin.triggered.connect(self.action_DuoBianXinTriggered)
+        # self.actionPLAN_2.triggered.connect(self.actionPLAN_2Triggered)
 
 
         # 单击、双击图层 触发事件
