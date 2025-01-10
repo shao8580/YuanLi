@@ -13,7 +13,7 @@ from ui.myWindow import Ui_MainWindow
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QStatusBar, QLabel, \
     QComboBox,QInputDialog
 from qgisUtils import addMapLayer, readVectorFile, readRasterFile, menuProvider, readS57File,list_layers_in_s57,PolygonMapTool,PointMapTool,LineMapTool,LineMapTool_1,DuoMianTiMapTool,YuanMapTool,\
-    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area,has_forced_neighbors,a_star_search
+    generate_neighbors,reconstruct_path,add_path_to_map,smooth_path_with_bspline,check_segment_intersects_with_restricted_area,has_forced_neighbors,a_star_search,a_star_search_short,rrt_search
 PROJECT = QgsProject.instance()
 
 #12.18.13:51更改,修改A*起点和终点读取
@@ -405,12 +405,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
         sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))
         print(sorted_features)
+        ok,_= QInputDialog.getInt(None, "路径特点", "请输入使用的路径规划方法序号", 1, 0, 360, 1)
         for i in range(len(sorted_features)-1):
             start_point = sorted_features[i].geometry().asPoint()
             end_point = sorted_features[i+1].geometry().asPoint()
+            if ok==1:
+                if a_star_search(self,start_point,end_point,0)==None:
+                    a_star_search(self, start_point, end_point,1)
+            if ok==2:
+                rrt_search(self,start_point,end_point,0)
+            if ok==3:
+                a_star_search_short(self,start_point,end_point,0)
 
-            if a_star_search(self,start_point,end_point,0)==None:
-                a_star_search(self, start_point, end_point,1)
 
 
     def return_path(self,node):

@@ -1,10 +1,12 @@
 from qgis.core import QgsGeometry, QgsPointXY, QgsFeature, QgsSpatialIndex,QgsProject
-from qgis.core import QgsPointXY, QgsGeometry
+from qgis.core import QgsPointXY, QgsGeometry,QgsFeatureRequest
 import numpy as np
 from scipy.interpolate import BarycentricInterpolator
 import sympy as sp
 from math import comb
+import random
 #12.18.13:51更改,修改A*起点和终点读取
+#1.6 14：20 增加rrt，用于高复度场景
 '''
 def find_path(start_point, end_point, land_layer, restricted_layer):
     """
@@ -60,13 +62,36 @@ def generate_neighbors(point,step=0.3):
         QgsPointXY(point.x() - step_size, point.y()),
         QgsPointXY(point.x(), point.y() + step_size),
         QgsPointXY(point.x(), point.y() - step_size),
-        QgsPointXY(point.x() + step_size/1.2, point.y() + step_size/1.2),
-        QgsPointXY(point.x() + step_size/1.2, point.y() - step_size/1.2),
-        QgsPointXY(point.x() - step_size/1.2, point.y() + step_size/1.2),
-        QgsPointXY(point.x() - step_size/1.2, point.y() - step_size/1.2)
+        QgsPointXY(point.x() + step_size/1.4, point.y() + step_size/1.4),
+        QgsPointXY(point.x() + step_size/1.4, point.y() - step_size/1.4),
+        QgsPointXY(point.x() - step_size/1.4, point.y() + step_size/1.4),
+        QgsPointXY(point.x() - step_size/1.4, point.y() - step_size/1.4)
     ]
 
     return neighbors
+
+
+def generate_neighbors_short(point,step=0.3):
+    """生成当前点的邻近点"""
+    # step_size = 0.5  调整步长以增加精度
+    # print(time.time())
+
+    step_size = random.uniform(0.005,step)
+    step_size = max(0.001,step_size)
+    neighbors = [
+        QgsPointXY(point.x() + step_size, point.y()),
+        QgsPointXY(point.x() - step_size, point.y()),
+        QgsPointXY(point.x(), point.y() + step_size),
+        QgsPointXY(point.x(), point.y() - step_size),
+        QgsPointXY(point.x() + step_size/1.4, point.y() + step_size/1.4),
+        QgsPointXY(point.x() + step_size/1.4, point.y() - step_size/1.4),
+        QgsPointXY(point.x() - step_size/1.4, point.y() + step_size/1.4),
+        QgsPointXY(point.x() - step_size/1.4, point.y() - step_size/1.4)
+    ]
+
+    return neighbors
+
+
 
 def has_forced_neighbors(point,direction,land_layer,restricted_layer):
     """
@@ -443,7 +468,7 @@ def check_segment_intersects_with_restricted_area_1(start_point, end_point, spat
         for fid in potential_ids:
             feature = layer.getFeature(fid)
             if segment.intersects(feature.geometry()):
-                print(f"线段与图层 {layer_name} 的要素 ID {fid} 相交")
+                # print(f"线段与图层 {layer_name} 的要素 ID {fid} 相交")
                 return True  # 如果找到相交的要素，立即返回 True
 
     return False  # 如果所有图层均未相交，返回 False
@@ -455,8 +480,6 @@ def a_star_search(self,start_point,end_point,direction=0):
     参数:
     start_point (QgsPointXY): 起点
     end_point (QgsPointXY): 终点
-    restricted_layer (QgsVectorLayer): 禁行区域图层
-    land_layer (QgsVectorLayer): 陆地图层
 
     返回:
     list: 生成的路径列表，或者 None（如果没有找到路径）
@@ -498,7 +521,7 @@ def a_star_search(self,start_point,end_point,direction=0):
         spatial_indexes[layer.name()] = {"layer": layer, "spatial_index": spatial_index}  # 存储索引与图层
         print(f"空间索引已创建：{layer.name()}")
 
-    print("全图层如下",spatial_indexes)
+    # print("全图层如下",spatial_indexes)
     open_set = []  # 存储待探索的节点
     closed_set = []  # 存储已经探索过的节点
     # 初始化起点
@@ -577,7 +600,292 @@ def a_star_search(self,start_point,end_point,direction=0):
 
         # 生成邻近节点，并检查是否与陆地或禁行区域相交
         a_time_start = time.time()
-        neighbors = generate_neighbors(current_node['point'], current_node['point'].distance(end_point))
+        neighbors = generate_neighbors(current_node['point'], 0.01)
+        a_time_end = time.time()
+        a += a_time_end - a_time_start
+        for neighbor in neighbors:
+            # 将 QgsPointXY 转换为 QgsGeometry
+            neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+            d_time_start = time.time()
+
+            # 检查邻近点是否与陆地或禁行区域相交
+            if check_segment_intersects_with_restricted_area_1(current_node['point'], neighbor, spatial_indexes):
+                continue  # 如果相交，跳过该节点
+
+            d_time_end = time.time()
+            d += d_time_end - d_time_start
+
+            g_score = current_node['g'] + current_node['point'].distance(neighbor)
+            h_score = neighbor.distance(end_point)
+            neighbor_node = {'point': neighbor, 'g': g_score, 'h': h_score, 'parent': current_node}
+
+            if neighbor_node not in closed_set:
+                open_set.append(neighbor_node)
+        b_time_end = time.time()
+        b += b_time_end - b_time_start
+    print("未找到合适路径")
+    return None  # 未找到有效路径
+
+
+def rrt_search(self, start_point, end_point, direction=0, max_iterations=1000, step_size=0.01):
+    """
+    使用 RRT 算法进行路径规划，确保路径在多边形边界内。
+
+    参数:
+    start_point (QgsPointXY): 起点
+    end_point (QgsPointXY): 终点
+    max_iterations (int): 最大迭代次数
+    step_size (float): 每次扩展的步长
+
+    返回:
+    list: 生成的路径列表，或者 None（如果没有找到路径）
+    """
+
+    a = 0
+    b = 0
+    c = 0
+    d = 0  # 各部分耗时记录
+
+    # 初始化起始节点和树
+    tree = [{'point': start_point, 'parent': None}]
+    goal_reached = False
+    path_points = []
+
+    print("起始点:", start_point)
+    print("终点:", end_point)
+
+    # 优化图层索引，创建空间索引
+    all_layers = {layer.name(): layer for layer in QgsProject.instance().mapLayers().values()}
+    matching_layers = [layer for layer in all_layers.values() if 'LNDARE' in layer.name() or 'RESARE' in layer.name()]
+
+    spatial_indexes = {}  # 用于存储每个图层的空间索引
+    for layer in matching_layers:
+        spatial_index = QgsSpatialIndex(layer.getFeatures())  # 基于所有要素创建空间索引
+        spatial_indexes[layer.name()] = {"layer": layer, "spatial_index": spatial_index}
+        print(f"空间索引已创建：{layer.name()}")
+
+    for iteration in range(max_iterations):
+        # 随机生成新点
+        random_point = QgsPointXY(
+            random.uniform(start_point.x(), end_point.x()),
+            random.uniform(start_point.y(), end_point.y())
+        )
+
+        # 找到离随机点最近的树中的节点
+        nearest_node = min(tree, key=lambda node: node['point'].distance(random_point))
+        direction_vector = QgsPointXY(
+            random_point.x() - nearest_node['point'].x(),
+            random_point.y() - nearest_node['point'].y()
+        )
+
+        # 计算新节点的位置
+        norm = (direction_vector.x() ** 2 + direction_vector.y() ** 2) ** 0.5
+        new_point = QgsPointXY(
+            nearest_node['point'].x() + (direction_vector.x() / norm) * step_size,
+            nearest_node['point'].y() + (direction_vector.y() / norm) * step_size
+        )
+
+        # 检查路径是否与障碍物相交
+        if check_segment_intersects_with_restricted_area_1(nearest_node['point'], new_point, spatial_indexes):
+            continue  # 如果相交，跳过该节点
+
+        # 将新节点加入树中
+        new_node = {'point': new_point, 'parent': nearest_node}
+        tree.append(new_node)
+
+        # 检查是否到达目标点
+        if new_point.distance(end_point) < step_size:
+            goal_node = {'point': end_point, 'parent': new_node}
+            tree.append(goal_node)
+            goal_reached = True
+            break
+
+    if goal_reached:
+        # 回溯生成路径
+        current_node = tree[-1]
+        while current_node:
+            path_points.append(current_node['point'])
+            current_node = current_node['parent']
+        path_points.reverse()
+
+        # 输出路径并添加到地图
+        add_path_to_map(path_points)
+        print(f"RRT 路径规划成功，迭代次数: {iteration + 1}")
+        return path_points
+    else:
+        print("RRT 路径规划失败，未找到合适路径")
+        return None
+
+
+def a_star_search_short(self,start_point,end_point,direction=0):
+    """
+    使用 A* 算法搜索路径，使用空间矢量索引优化大区域计算
+
+    参数:
+    start_point (QgsPointXY): 起点
+    end_point (QgsPointXY): 终点
+
+    返回:
+    list: 生成的路径列表，或者 None（如果没有找到路径）
+    """
+    a = 0;
+    b = 0;
+    c = 0;
+    d = 0;  # a为文本打印耗时,b为生成节点并判断是否相交时长,c为A*计算
+    # point_layer = self.layerTreeView.currentLayer()
+    # provider = point_layer.dataProvider()
+
+    # 获取所有点要素
+    # all_features = [feat for feat in provider.getFeatures()]
+    # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+    # 过滤掉 id 属性为 NULL 的点 (假设 id 在第3列索引为2)
+    # valid_features = [feat for feat in all_features if
+    #                 not feat.attribute(2) is None and not feat.attribute(2) == "Standard"]
+    # 按 id 属性排序点要素 (假设 id 在第3列索引为2)
+    # sorted_features = sorted(valid_features, key=lambda f: f.attribute(2))  # 这里 2 是 id 列的索引
+    # print(sorted_features)
+    # if direction == 0:
+    #     start_point = sorted_features[0].geometry().asPoint()
+    #     end_point = sorted_features[-1].geometry().asPoint()
+    # if direction == 1:
+    #     start_point = sorted_features[-1].geometry().asPoint()
+    #     end_point = sorted_features[0].geometry().asPoint()
+    print("起始点")
+    print(start_point)
+    print("终点")
+    print(end_point)
+    # 优化all_layers为字典，创建空间索引
+    all_layers = {layer.name(): layer for layer in QgsProject.instance().mapLayers().values()}
+    matching_layers = [layer for layer in all_layers.values() if 'LNDARE' in layer.name() or 'RESARE' in layer.name()]
+
+    spatial_indexes = {}  # 用于存储每个图层的空间索引
+
+    for layer in matching_layers:
+        spatial_index = QgsSpatialIndex(layer.getFeatures())  # 基于所有要素创建空间索引
+        spatial_indexes[layer.name()] = {"layer": layer, "spatial_index": spatial_index}  # 存储索引与图层
+        print(f"空间索引已创建：{layer.name()}")
+
+    # print("全图层如下",spatial_indexes)
+    open_set = []  # 存储待探索的节点
+    closed_set = []  # 存储已经探索过的节点
+    # 初始化起点
+    start_node = {'point': start_point, 'g': 0, 'h': start_point.distance(end_point)}
+    open_set.append(start_node)
+
+    while open_set:
+        c_time_start = time.time()
+        # 按照f = g + h的值排序，选择最优节点
+        current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+        open_set.remove(current_node)
+        c_time_end = time.time()
+        c += c_time_end - c_time_start
+
+        # 如果到达终点，则返回路径
+        if current_node['point'].distance(end_point) < 0.6:  # 允许一定范围内到达
+
+            while open_set:
+                c_time_start = time.time()
+                # 按照f = g + h的值排序，选择最优节点
+                current_node = min(open_set, key=lambda node: node['g'] + node['h'])
+                open_set.remove(current_node)
+                c_time_end = time.time()
+                c += c_time_end - c_time_start
+                # 如果到达终点，则返回路径
+                if current_node['point'].distance(end_point) < 0.01:  # 允许一定范围内到达
+
+                    print("已找到路径")
+
+                    list1 = reconstruct_path(current_node)
+                    add_path_to_map(list1)
+
+                    print(f"生产临近点耗时{a:.3f}")
+                    print(f"路径计算耗时{b:.3f}")
+                    print(f"A*计算权值耗时{c:.3f}")
+                    print(f"计算是否接触耗时{d:.3f}")
+                    return reconstruct_path(current_node)
+
+                print(current_node['point'].distance(end_point))
+
+                # 将当前节点加入已探索的节点
+                closed_set.append(current_node)
+                b_time_start = time.time()
+                # 生成邻近节点，并检查是否与陆地或禁行区域相交
+                a_time_start = time.time()
+                #--------------------------
+                # 获取当前点到最近障碍物的距离
+                nearest_distance = float('inf')  # 初始化一个较大的值
+                for layer_name, data in spatial_indexes.items():
+                    spatial_index = data['spatial_index']  # 获取当前图层的空间索引
+                    layer = data['layer']  # 获取图层对象
+                    nearest_ids = spatial_index.nearestNeighbor(current_node['point'], 1)  # 找到最近的一个障碍物
+                    if nearest_ids:  # 如果找到了最近的障碍物
+                        nearest_feature = next(layer.getFeatures(QgsFeatureRequest(nearest_ids[0])))
+                        distance = current_node['point'].distance(
+                            nearest_feature.geometry().nearestPoint(
+                                QgsGeometry.fromPointXY(current_node['point'])
+                            ).asPoint()
+                        )
+                        nearest_distance = min(nearest_distance, distance)  # 更新最近距离
+
+                # 如果未找到任何障碍物，设置步长为一个最小值
+                if nearest_distance == float('inf'):
+                    nearest_distance = 0.01  # 最小步长
+                # -----------------------------------------------------
+                neighbors = generate_neighbors_short(current_node['point'], nearest_distance)
+
+                a_time_end = time.time()
+                a += a_time_end - a_time_start
+
+                for neighbor in neighbors:
+                    # 将 QgsPointXY 转换为 QgsGeometry
+                    neighbor_geom = QgsGeometry.fromPointXY(neighbor)
+                    d_time_start = time.time()
+                    # 检查邻近点是否与陆地或禁行区域相交
+
+                    if check_segment_intersects_with_restricted_area_1(current_node['point'], neighbor, spatial_indexes):
+                        continue  # 如果相交，跳过该节点
+
+                    d_time_end = time.time()
+                    d += d_time_end - d_time_start
+
+                    # g_score = current_node['g'] + current_node['point'].distance(neighbor)
+                    h_score = neighbor.distance(end_point)
+                    neighbor_node = {'point': neighbor, 'g': 0, 'h': h_score, 'parent': current_node}
+
+                    if neighbor_node not in closed_set:
+                        open_set.append(neighbor_node)
+                b_time_end = time.time()
+                b += b_time_end - b_time_start
+
+        print(current_node['point'].distance(end_point))
+
+        b_time_start = time.time()
+        # 将当前节点加入已探索的节点
+        closed_set.append(current_node)
+
+        # 生成邻近节点，并检查是否与陆地或禁行区域相交
+        a_time_start = time.time()
+        #----------------------
+        # 获取当前点到最近障碍物的距离
+        nearest_distance = float('inf')  # 初始化一个较大的值
+        for layer_name, data in spatial_indexes.items():
+            spatial_index = data['spatial_index']  # 获取当前图层的空间索引
+            layer = data['layer']  # 获取图层对象
+            nearest_ids = spatial_index.nearestNeighbor(current_node['point'], 1)  # 找到最近的一个障碍物
+            if nearest_ids:  # 如果找到了最近的障碍物
+                nearest_feature = next(layer.getFeatures(QgsFeatureRequest(nearest_ids[0])))
+                distance = current_node['point'].distance(
+                    nearest_feature.geometry().nearestPoint(
+                        QgsGeometry.fromPointXY(current_node['point'])
+                    ).asPoint()
+                )
+                nearest_distance = min(nearest_distance, distance)  # 更新最近距离
+
+        # 如果未找到任何障碍物，设置步长为一个最小值
+        if nearest_distance == float('inf'):
+            nearest_distance = 0.01  # 最小步长
+        #-----------------------------------------------------
+        neighbors = generate_neighbors_short(current_node['point'], nearest_distance)
         a_time_end = time.time()
         a += a_time_end - a_time_start
         for neighbor in neighbors:

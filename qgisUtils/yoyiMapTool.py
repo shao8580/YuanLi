@@ -59,7 +59,11 @@ class PolygonMapTool(QgsMapToolEmitPoint):
                 self.is_start = False
                 self.cursor_point = None
                 self.p = self.polygon()
-                self.drawLinesInsidePolygon()
+                self.bian, ok = QInputDialog.getDouble(None, "多边形", "请输入路径间距:", 1, 0, 1000000, 6)
+                print(type(self.bian))
+                self.angle, ok = QInputDialog.getInt(None, "多边形", "请输入路径偏转角度:（0°-360°）", 1, 0, 360, 1)
+
+                self.drawLinesInsidePolygon(spacing=self.bian,angle=self.angle)
 
                 if self.recExtent and not QgsGeometry.fromRect(self.recExtent).contains(self.p):
                     QMessageBox.about(self.mainWindow, '错误', "面矢量与图层范围不相交")
@@ -199,12 +203,12 @@ class PolygonMapTool(QgsMapToolEmitPoint):
     from PyQt5.QtWidgets import QMessageBox
     from qgis.core import QgsPointXY, QgsGeometry, QgsFeature, QgsVectorLayer, QgsProject
     from PyQt5.QtCore import Qt
-
-    def drawLinesInsidePolygon(self, line_layer_name="Generated Lines", spacing=0.1):
+    def drawLinesInsidePolygon(self, line_layer_name="Generated Lines", spacing=0.1, angle=0):
         """
         生成一条连续的蛇形折返路径，遍历多边形区域，确保路径在边界内并保持连续。
         :param line_layer_name: str，生成的线图层名称。
         :param spacing: float，路径之间的间距。
+        :param angle: float，路径的旋转角度（以度为单位）。
         """
         if not self.p:  # 检查当前是否已经绘制了多边形
             QMessageBox.warning(self.mainWindow, "警告", "请先绘制多边形")
@@ -212,8 +216,32 @@ class PolygonMapTool(QgsMapToolEmitPoint):
 
         # 获取多边形的几何信息
         polygon_geom = self.p
-        bounding_box = polygon_geom.boundingBox()  # 获取多边形的外包矩形
 
+        # 如果设置了角度，旋转整个多边形
+        if angle != 0:
+            from math import radians, cos, sin
+
+            rad_angle = radians(angle)
+            centroid = polygon_geom.centroid().asPoint()
+
+            # 定义旋转单个点的函数
+            def rotate_point(x, y, cx, cy, rad):
+                dx, dy = x - cx, y - cy
+                nx = cos(rad) * dx - sin(rad) * dy + cx
+                ny = sin(rad) * dx + cos(rad) * dy + cy
+                return nx, ny
+
+            # 旋转多边形的所有顶点
+            rotated_polygon_points = [
+                QgsPointXY(*rotate_point(pt.x(), pt.y(), centroid.x(), centroid.y(), rad_angle)) for pt in
+                polygon_geom.vertices()
+            ]
+
+            # 用旋转后的顶点创建新的多边形
+            polygon_geom = QgsGeometry.fromPolygonXY([rotated_polygon_points])
+
+        # 获取旋转后的多边形的外包矩形
+        bounding_box = polygon_geom.boundingBox()
         min_x, max_x = bounding_box.xMinimum(), bounding_box.xMaximum()
         min_y, max_y = bounding_box.yMinimum(), bounding_box.yMaximum()
 
@@ -242,8 +270,15 @@ class PolygonMapTool(QgsMapToolEmitPoint):
                 # 如果路径段不完全在多边形内，需要调整路径，确保只生成在多边形内的路径段
                 clipped_line = line_geom.intersection(polygon_geom)
                 if not clipped_line.isEmpty():
-                    # 检查是否为折线，而非点
-                    if clipped_line.isMultipart() or clipped_line.type() == QgsWkbTypes.LineGeometry:
+                    # 检查是否为 MultiLineString 类型
+                    if clipped_line.type() == QgsWkbTypes.MultiLineString:
+                        # 提取每一段线
+                        multiline = clipped_line.asMultiPolyline()
+                        for line in multiline:
+                            if len(line) > 1:
+                                path_points.extend(line)
+                    elif clipped_line.type() == QgsWkbTypes.LineGeometry:
+                        # 处理单一折线
                         points = clipped_line.asPolyline()
                         if len(points) > 1:
                             path_points.extend(points)
@@ -254,6 +289,11 @@ class PolygonMapTool(QgsMapToolEmitPoint):
             current_y += spacing
             # 改变方向，实现蛇形折返
             direction *= -1
+
+        # 将生成的路径旋转回原始角度
+        if angle != 0:
+            path_points = [QgsPointXY(*rotate_point(pt.x(), pt.y(), centroid.x(), centroid.y(), -rad_angle)) for pt in
+                           path_points]
 
         # 创建一个新的内存线图层
         crs = self.editLayer.crs().authid()  # 获取当前图层的坐标系
