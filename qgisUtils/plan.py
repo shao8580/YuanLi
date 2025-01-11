@@ -600,7 +600,7 @@ def a_star_search(self,start_point,end_point,direction=0):
 
         # 生成邻近节点，并检查是否与陆地或禁行区域相交
         a_time_start = time.time()
-        neighbors = generate_neighbors(current_node['point'], 0.01)
+        neighbors = generate_neighbors(current_node['point'],  current_node['point'].distance(end_point))
         a_time_end = time.time()
         a += a_time_end - a_time_start
         for neighbor in neighbors:
@@ -781,7 +781,7 @@ def a_star_search_short(self,start_point,end_point,direction=0):
         c += c_time_end - c_time_start
 
         # 如果到达终点，则返回路径
-        if current_node['point'].distance(end_point) < 0.6:  # 允许一定范围内到达
+        if current_node['point'].distance(end_point) < 0.1:  # 允许一定范围内到达
 
             while open_set:
                 c_time_start = time.time()
@@ -791,7 +791,7 @@ def a_star_search_short(self,start_point,end_point,direction=0):
                 c_time_end = time.time()
                 c += c_time_end - c_time_start
                 # 如果到达终点，则返回路径
-                if current_node['point'].distance(end_point) < 0.01:  # 允许一定范围内到达
+                if current_node['point'].distance(end_point) < 0.005:  # 允许一定范围内到达
 
                     print("已找到路径")
 
@@ -811,7 +811,7 @@ def a_star_search_short(self,start_point,end_point,direction=0):
                 b_time_start = time.time()
                 # 生成邻近节点，并检查是否与陆地或禁行区域相交
                 a_time_start = time.time()
-                #--------------------------
+                '''                #--------------------------
                 # 获取当前点到最近障碍物的距离
                 nearest_distance = float('inf')  # 初始化一个较大的值
                 for layer_name, data in spatial_indexes.items():
@@ -830,8 +830,8 @@ def a_star_search_short(self,start_point,end_point,direction=0):
                 # 如果未找到任何障碍物，设置步长为一个最小值
                 if nearest_distance == float('inf'):
                     nearest_distance = 0.01  # 最小步长
-                # -----------------------------------------------------
-                neighbors = generate_neighbors_short(current_node['point'], nearest_distance)
+                # -----------------------------------------------------'''
+                neighbors = generate_neighbors_short(current_node['point'], 0.01)
 
                 a_time_end = time.time()
                 a += a_time_end - a_time_start
